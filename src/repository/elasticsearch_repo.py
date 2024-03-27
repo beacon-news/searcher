@@ -1,7 +1,7 @@
 from utils import log_utils
 import logging
 import asyncio
-from elasticsearch import exceptions, AsyncElasticsearch
+from elasticsearch import exceptions, AsyncElasticsearch, helpers
 from embeddings import EmbeddingsModel
 from dto.search_options import SearchOptions
 from dto.search_result import SearchResult, SearchResults
@@ -22,7 +22,6 @@ class ElasticsearchRepository:
 
   def __init__(
       self, 
-      em: EmbeddingsModel,
       conn: str, 
       user: str, 
       password: str, 
@@ -31,17 +30,67 @@ class ElasticsearchRepository:
       log_level: int = logging.INFO
   ):
     self.configure_logging(log_level)
-    self.em = em
     self.index_name = "articles"
 
     # TODO: secure with TLS
     # TODO: add some form of auth
     self.log.info(f"connecting to Elasticsearch at {conn}")
     self.es = AsyncElasticsearch(conn, basic_auth=(user, password), ca_certs=cacerts, verify_certs=verify_certs)
+
+  async def assert_index(self):
+    # assert articles index
+    try:
+      self.log.info(f"creating/asserting index '{self.index_name}'")
+      await self.es.indices.create(index=self.index_name, mappings={
+        "properties": {
+          "analyzer": {
+            "properties": {
+              "categories": {
+                "type": "text",
+                "fields": {
+                  "keyword": {
+                    "type": "keyword",
+                    "ignore_above": 256
+                  }
+                }
+              },
+              "embeddings": {
+                "type": "dense_vector",
+                "dims": 384, # depends on model used
+              },
+              "entities": {
+                "type": "text"
+              },
+            }
+          },
+          "article": {
+            "properties": {
+              "url": {
+                "type": "keyword",
+              },
+              "publish_date": {
+                "type": "date",
+              },
+              "author": {
+                "type": "text",
+              },
+              "title": {
+                "type": "text",
+              },
+              "paragraphs": {
+                "type": "text",
+              },
+            }
+          }
+        }
+      })
+    except exceptions.BadRequestError as e:
+      if e.message == "resource_already_exists_exception":
+        self.log.info(f"index {self.index_name} already exists")
   
-  async def search_combined(self, search_options: SearchOptions) -> SearchResults:
+  async def search_combined(self, search_options: SearchOptions, embeddings: list) -> SearchResults:
     res_text = asyncio.Task(self.__search_text(search_options))
-    res_em = asyncio.Task(self.__search_embeddings(search_options))
+    res_em = asyncio.Task(self.__search_embeddings(search_options, embeddings))
     res_text = await res_text
     res_em = await res_em
 
@@ -66,12 +115,12 @@ class ElasticsearchRepository:
       source_excludes=["analyzer.embeddings"],
     )
 
-  async def search_embeddings(self, search_options: SearchOptions) -> SearchResults:
-    res = await self.__search_embeddings(search_options)
+  async def search_embeddings(self, search_options: SearchOptions, embeddings: list) -> SearchResults:
+    res = await self.__search_embeddings(search_options, embeddings)
     return self.__create_result(res['hits']['hits'])
   
-  async def __search_embeddings(self, search_options: SearchOptions) -> list:
-    knn_query = self.__build_knn_query(search_options)
+  async def __search_embeddings(self, search_options: SearchOptions, embeddings: list) -> list:
+    knn_query = self.__build_knn_query(search_options, embeddings)
     if knn_query is None:
       return []
 
@@ -141,12 +190,11 @@ class ElasticsearchRepository:
       }
     }
 
-  def __build_knn_query(self, search_options: SearchOptions) -> dict | None:
+  def __build_knn_query(self, search_options: SearchOptions, embeddings: list) -> dict | None:
 
       if search_options.query is None or search_options.query.strip() == "": 
         return None
 
-      embeddings = self.em.encode([search_options.query])[0]
       return {
         "field": "analyzer.embeddings",
         "query_vector": embeddings,
@@ -199,6 +247,22 @@ class ElasticsearchRepository:
         )
 
       return SearchResults(results=res)
+  
 
-
+  async def store_batch(self, analyzed_articles: list[dict]) -> list[str]:
+    self.log.info(f"attempting to insert {len(analyzed_articles)} articles in {self.index_name}")
+    async for ok, action in helpers.async_streaming_bulk(self.es, self.__generate_doc_actions(analyzed_articles)):
+      if not ok:
+        self.log.error(f"failed to bulk store article: {action}")
+        continue
+      self.log.info(f"successfully stored article: {action}")
+  
+  def __generate_doc_actions(self, articles: list[dict]):
+    for i in range(len(articles)):
+      action = {
+        "_id": articles[i]["article"]["id"],
+        "_index": self.index_name,
+        **articles[i]
+      }
+      yield action
 

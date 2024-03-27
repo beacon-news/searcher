@@ -30,7 +30,6 @@ em = EmbeddingsModel(ec)
 
 
 es = ElasticsearchRepository(
-  em,
   ELASTIC_CONN, 
   ELASTIC_USER, 
   ELASTIC_PASSWORD, 
@@ -55,7 +54,9 @@ async def search(search_options: SearchOptions) -> SearchResults:
     if search == SearchType.text:
       return await es.search_text(search_options)
     elif search == SearchType.semantic:
-      return await es.search_embeddings(search_options)
+      embeddings = em.encode([search_options.query])[0]
+      return await es.search_embeddings(search_options, embeddings)
     elif search == SearchType.combined:
-      return await es.search_combined(search_options)
+      embeddings = em.encode([search_options.query])[0]
+      return await es.search_combined(search_options, embeddings)
     
