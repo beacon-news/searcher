@@ -2,9 +2,9 @@ import os
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from embeddings import EmbeddingsModelContainer, EmbeddingsModel
-from repository.elasticsearch_repo import ElasticsearchRepository
-from dto.search_options import *
-from dto.search_result import *
+from repository.elasticsearch_repository import ElasticsearchRepository
+from dto.article_query import *
+from dto.article_result import *
 
 from utils import log_utils
 
@@ -25,9 +25,7 @@ ELASTIC_CONN = check_env('ELASTIC_HOST', 'https://localhost:9200')
 ELASTIC_CA_PATH = check_env('ELASTIC_CA_PATH', '../certs/_data/ca/ca.crt')
 ELASTIC_TLS_INSECURE = bool(check_env('ELASTIC_TLS_INSECURE', False))
 
-ec = EmbeddingsModelContainer.load(EMBEDDINGS_MODEL_PATH)
-em = EmbeddingsModel(ec)
-
+em = EmbeddingsModel(EmbeddingsModelContainer.load(EMBEDDINGS_MODEL_PATH))
 
 es = ElasticsearchRepository(
   ELASTIC_CONN, 
@@ -40,23 +38,21 @@ es = ElasticsearchRepository(
 
 log = log_utils.create_console_logger("Searcher")
 
-
 app = FastAPI()
 
-
-@app.post("/search")
-async def search(search_options: SearchOptions) -> SearchResults:
+@app.post("/search/articles")
+async def search_articles(search_options: ArticleQuery) -> ArticleResults:
 
     log.info(f"searching for {search_options}")
 
     search = search_options.search_type
 
-    if search == SearchType.text:
+    if search == ArticleQueryType.text:
       return await es.search_text(search_options)
-    elif search == SearchType.semantic:
+    elif search == ArticleQueryType.semantic:
       embeddings = em.encode([search_options.query])[0]
       return await es.search_embeddings(search_options, embeddings)
-    elif search == SearchType.combined:
+    elif search == ArticleQueryType.combined:
       embeddings = em.encode([search_options.query])[0]
       return await es.search_combined(search_options, embeddings)
     

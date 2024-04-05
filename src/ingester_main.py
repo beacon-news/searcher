@@ -2,7 +2,7 @@ import os
 import asyncio
 from ingester.notification_consumer import *
 from ingester.analyzer_repository import *
-from repository.elasticsearch_repo import *
+from searcher.src.repository.elasticsearch_repository import *
 from utils import log_utils
 from dotenv import load_dotenv
 
@@ -62,7 +62,7 @@ async def process_notification(ids: list[str]):
 
   log.info(f"stored articles in elasticsearch")
 
-async def do():
+async def main():
   await es.assert_index()
 
   await RedisNotificationConsumer(
@@ -74,4 +74,4 @@ async def do():
 
   
 if __name__ == "__main__":
-  asyncio.run(do())
+  asyncio.run(main())
