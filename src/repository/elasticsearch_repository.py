@@ -415,28 +415,3 @@ class ElasticsearchRepository(Repository):
       res.append(topic)
 
     return res
-    hits = docs['hits']['hits']
-
-    return [
-      Topic(
-        id=source['_id'],
-        create_time=source['_source']['create_time'],
-        query=TopicArticleQuery(
-          publish_date=PublishDateFilter(
-            start=datetime.fromisoformat(source['_source']['query']['publish_date']['start']),
-            end=datetime.fromisoformat(source['_source']['query']['publish_date']['end']),
-          )
-        ),
-        topic=source['_source']['topic'],
-        count=source['_source']['count'],
-        representative_articles=[
-          TopicArticle(
-            id=ra['_id'],
-            url=ra['url'],
-            publish_date=datetime.fromisoformat(ra['publish_date']),
-            author=ra['author'],
-            title=ra['title'],
-          ) for ra in source['_source']['representative_articles']
-        ]
-      ) for source in hits
-    ]
