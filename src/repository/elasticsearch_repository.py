@@ -4,12 +4,13 @@ import asyncio
 from elasticsearch import exceptions, AsyncElasticsearch
 from dto.article_query import ArticleQuery
 from dto.article_result import ArticleResult, ArticleResults
+from repository.repository import Repository
 
 KNN_NUM_CANDIDATES = 50
 KNN_K = 10
 
 
-class ElasticsearchRepository:
+class ElasticsearchRepository(Repository):
 
   @classmethod
   def configure_logging(cls, level: int):
@@ -102,7 +103,7 @@ class ElasticsearchRepository:
       if e.message == "resource_already_exists_exception":
         self.log.info(f"index {self.index_name} already exists")
   
-  async def search_combined(self, search_options: ArticleQuery, embeddings: list) -> ArticleResults:
+  async def search_articles_combined(self, search_options: ArticleQuery, embeddings: list) -> ArticleResults:
     res_text = asyncio.Task(self.__search_text(search_options))
     res_em = asyncio.Task(self.__search_embeddings(search_options, embeddings))
     res_text = await res_text
@@ -116,7 +117,7 @@ class ElasticsearchRepository:
     reranked = self.__re_rank_rrf(res_text['hits']['hits'], res_em['hits']['hits'])
     return self.__create_result([doc['doc'] for doc in reranked])
   
-  async def search_text(self, search_options: ArticleQuery) -> ArticleResults:
+  async def search_articles_text(self, search_options: ArticleQuery) -> ArticleResults:
     res = await self.__search_text(search_options)
     return self.__create_result(res['hits']['hits'])
   
@@ -130,7 +131,7 @@ class ElasticsearchRepository:
       source_includes=self.__map_search_keys(search_options.return_attributes)
     )
   
-  async def search_embeddings(self, search_options: ArticleQuery, embeddings: list) -> ArticleResults:
+  async def search_articles_embeddings(self, search_options: ArticleQuery, embeddings: list) -> ArticleResults:
     res = await self.__search_embeddings(search_options, embeddings)
     return self.__create_result(res['hits']['hits'])
   

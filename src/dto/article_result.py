@@ -13,5 +13,6 @@ class ArticleResult(BaseModel):
   title: str | None = None
   paragraphs: list[str] | None = None
 
+
 class ArticleResults(BaseModel):
   results: list[ArticleResult]

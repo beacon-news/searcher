@@ -5,6 +5,7 @@ from embeddings import EmbeddingsModelContainer, EmbeddingsModel
 from repository.elasticsearch_repository import ElasticsearchRepository
 from dto.article_query import *
 from dto.article_result import *
+from repository import Repository
 
 from utils import log_utils
 
@@ -27,7 +28,7 @@ ELASTIC_TLS_INSECURE = bool(check_env('ELASTIC_TLS_INSECURE', False))
 
 em = EmbeddingsModel(EmbeddingsModelContainer.load(EMBEDDINGS_MODEL_PATH))
 
-es = ElasticsearchRepository(
+repo: Repository = ElasticsearchRepository(
   ELASTIC_CONN, 
   ELASTIC_USER, 
   ELASTIC_PASSWORD, 
@@ -48,13 +49,13 @@ async def search_articles(search_options: ArticleQuery) -> ArticleResults:
     search = search_options.search_type
 
     if search == ArticleQueryType.text:
-      results = await es.search_text(search_options)
+      results = await repo.search_articles_text(search_options)
     elif search == ArticleQueryType.semantic:
       embeddings = em.encode([search_options.query])[0]
-      results = await es.search_embeddings(search_options, embeddings)
+      results = await repo.search_articles_embeddings(search_options, embeddings)
     elif search == ArticleQueryType.combined:
       embeddings = em.encode([search_options.query])[0]
-      results = await es.search_combined(search_options, embeddings)
+      results = await repo.search_articles_combined(search_options, embeddings)
     
     return results
     
