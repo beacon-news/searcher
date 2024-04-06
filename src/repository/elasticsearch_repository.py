@@ -217,7 +217,11 @@ class ElasticsearchRepository(Repository):
         }
       )
     
-    date_query = self.__build_date_query(search_options.date_min, search_options.date_max)
+    date_query = self.__build_date_query(
+      field="article.publish_date",
+      start=search_options.date_min, 
+      end=search_options.date_max
+    )
     filters = [date_query]
     
     if id is not None:
@@ -231,7 +235,11 @@ class ElasticsearchRepository(Repository):
     }
 
   def __build_article_knn_query(self, search_options: ArticleQuery, embeddings: list) -> dict:
-    filters = [self.__build_date_query(search_options)]
+    filters = [self.__build_date_query(
+      field="article.publish_date",
+      start=search_options.date_min,
+      end=search_options.date_max
+    )]
     if search_options.id is not None:
       filters.append(self.__build_id_query(search_options))
 
@@ -243,10 +251,10 @@ class ElasticsearchRepository(Repository):
       "filter": filters,
     }
     
-  def __build_date_query(self, start: datetime, end: datetime) -> dict:
+  def __build_date_query(self, field: str, start: datetime, end: datetime) -> dict:
     return {
       "range": {
-        "article.publish_date": {
+        field: {
           "gte": start.isoformat(),
           "lte": end.isoformat(),
         }
@@ -336,6 +344,7 @@ class ElasticsearchRepository(Repository):
     docs = await self.es.search(
       index=self.topic_index, 
       query=query,
+      size=topic_query.size,
       source_includes=self.__map_search_keys(
         keys=topic_query.return_attributes,
         mapping=self.topic_search_keys_to_repo_model
@@ -361,6 +370,20 @@ class ElasticsearchRepository(Repository):
       if count_max is not None:
         count_query["range"]["count"]["lte"] = count_max
       filters.append(count_query)
+
+    # query so that both the start and end is in the queried range
+    date_min = datetime.fromtimestamp(0) if topic_query.date_min is None else topic_query.date_min
+    date_max = datetime.now() if topic_query.date_max is None else topic_query.date_max
+    filters.append(self.__build_date_query(
+      field="query.publish_date.start",
+      start=date_min, 
+      end=date_max,
+    ))
+    filters.append(self.__build_date_query(
+      field="query.publish_date.end",
+      start=date_min, 
+      end=date_max,
+    ))
 
     must_queries = []
     if topic_query.topic is not None:

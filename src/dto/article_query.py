@@ -2,8 +2,7 @@ from pydantic import BaseModel, model_validator, field_validator, conint
 from datetime import datetime
 from enum import Enum
 from dto.article_result import ArticleResult
-import typing
-import types
+from dto.utils import flatten_model_attributes
 
 
 # article_search_keys = [
@@ -17,26 +16,6 @@ import types
 #   "paragraphs",
 # ]
 
-def flatten_model_attributes(d: BaseModel, keys: set, parent_key: str=''):
-  """Returns model attributes separated by '.' for nested models, in the 'keys' set."""
-
-  for key, field_info in d.model_fields.items():
-    if len(parent_key) == 0:
-      key_name = key
-    else:
-      key_name = parent_key + '.' + key
-
-    if type(field_info.annotation) == type(BaseModel):
-      flatten_model_attributes(field_info.annotation, keys, key_name)
-    elif type(field_info.annotation) == types.UnionType:
-      type_args = typing.get_args(field_info.annotation)
-      for t in type_args:
-        if type(t) == type(BaseModel):
-          flatten_model_attributes(t, keys, key_name)
-        else:
-          keys.add(key_name)
-    else:
-      keys.add(key_name)
   
 # find out the flattened keys of ArticleResult
 article_search_keys = set()
@@ -67,7 +46,7 @@ class ArticleQuery(BaseModel):
   date_min: datetime = datetime.fromtimestamp(0)
   date_max: datetime = datetime.now()
 
-  # only applicable to text search
+  # only applicable to text search, semantic search will always limit the returned results
   size: conint(gt=0, lt=30) = 10 # type: ignore
 
   search_type: ArticleQueryType = ArticleQueryType.text
@@ -75,6 +54,7 @@ class ArticleQuery(BaseModel):
   # return only a subset of an ArticleResult
   # None means return all attributes
   return_attributes: list[str] | None = None  
+
 
   @field_validator("return_attributes")
   @classmethod
@@ -102,8 +82,16 @@ class ArticleQuery(BaseModel):
     for v in values:
       if v is not None and v.strip() != "":
         return self
+      
+    keys = [
+      "id",
+      "query",
+      "categories",
+      "author",
+      "tags",
+    ]
     
-    raise ValueError(f"At least one of 'id', 'query', 'categories', 'author' or 'tags' must be specified.")
+    raise ValueError(f"At least one of {keys} must be specified.")
   
   @model_validator(mode='after')
   def query_present_for_semantic_and_combined_search(self):
