@@ -1,9 +1,6 @@
 from pydantic import BaseModel
 from datetime import datetime
 
-class Other(BaseModel):
-  name: str
-  nested: dict
 
 class ArticleResult(BaseModel):
   # what's returned is based on the return_attributes field of the ArticleQuery
@@ -15,9 +12,6 @@ class ArticleResult(BaseModel):
   author: str | None = None
   title: str | None = None
   paragraphs: list[str] | None = None
-
-  other: Other | None = None
-  # other: Other
 
 class ArticleResults(BaseModel):
   results: list[ArticleResult]

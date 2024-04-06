@@ -40,7 +40,7 @@ log = log_utils.create_console_logger("Searcher")
 
 app = FastAPI()
 
-@app.post("/search/articles")
+@app.post("/search/articles", response_model=ArticleResults, response_model_exclude_none=True)
 async def search_articles(search_options: ArticleQuery) -> ArticleResults:
 
     log.info(f"searching for {search_options}")
@@ -48,11 +48,13 @@ async def search_articles(search_options: ArticleQuery) -> ArticleResults:
     search = search_options.search_type
 
     if search == ArticleQueryType.text:
-      return await es.search_text(search_options)
+      results = await es.search_text(search_options)
     elif search == ArticleQueryType.semantic:
       embeddings = em.encode([search_options.query])[0]
-      return await es.search_embeddings(search_options, embeddings)
+      results = await es.search_embeddings(search_options, embeddings)
     elif search == ArticleQueryType.combined:
       embeddings = em.encode([search_options.query])[0]
-      return await es.search_combined(search_options, embeddings)
+      results = await es.search_combined(search_options, embeddings)
+    
+    return results
     

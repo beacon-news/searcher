@@ -66,8 +66,8 @@ import pydantic as pd
 import typing
 import types
 
-def fdk(d: dict, key_list: list, parent_key: str=''):
-  for key, field_info in d.items():
+def flatten_model_attributes(d: pd.BaseModel, keys: set, parent_key: str=''):
+  for key, field_info in d.model_fields.items():
     if len(parent_key) == 0:
       key_name = key
     else:
@@ -78,17 +78,17 @@ def fdk(d: dict, key_list: list, parent_key: str=''):
     # print(field_info.annotation, hasattr(field_info.annotation, 'model_fields'))
 
     if type(field_info.annotation) == type(pd.BaseModel):
-      fdk(field_info.annotation.model_fields, key_list, key_name)
+      flatten_model_attributes(field_info.annotation, keys, key_name)
     elif type(field_info.annotation) == types.UnionType:
       type_args = typing.get_args(field_info.annotation)
       for t in type_args:
         if type(t) == type(pd.BaseModel):
-          fdk(t.model_fields, key_list, key_name)
+          flatten_model_attributes(t, keys, key_name)
         else:
-          key_list.append(key_name)
+          keys.add(key_name)
     else:
       # assume every other thing is a primitive type
-      key_list.append(key_name)
+      keys.add(key_name)
 
 m = ArticleResult.model_fields
 o = ArticleResult
@@ -101,34 +101,34 @@ import typing as t
 # print(hasattr(r, 'id'))
 # print(hasattr(ArticleResult, 'id'))
 
-l = []
-fdk(ArticleResult.model_fields, l)
+l = set()
+flatten_model_attributes(ArticleResult, l)
 print(l)
 
-print(type(pd.BaseModel))
-for k in m:
-  # print(k, type(m[k]), m[k].annotation, type(m[k].annotation)) 
-  print(m[k].annotation, type(m[k].annotation)) 
+# print(type(pd.BaseModel))
+# for k in m:
+#   # print(k, type(m[k]), m[k].annotation, type(m[k].annotation)) 
+#   print(m[k].annotation, type(m[k].annotation)) 
 
-  a = t.get_args(m[k].annotation)
-  print(a)
-  for i in a:
-    print(i, type(i) == type(pd.BaseModel))
-    if type(i) == type(pd.BaseModel):
-      print(i.model_fields)
+#   a = t.get_args(m[k].annotation)
+#   print(a)
+#   for i in a:
+#     print(i, type(i) == type(pd.BaseModel))
+#     if type(i) == type(pd.BaseModel):
+#       print(i.model_fields)
 
-  # print(isinstance(m[k].annotation, type(pd.BaseModel)))
-  # print(type(m[k].annotation) == type(pd.BaseModel))
+#   # print(isinstance(m[k].annotation, type(pd.BaseModel)))
+#   # print(type(m[k].annotation) == type(pd.BaseModel))
 
-  # print(m[k].alias)
-  # print(hasattr(ArticleResult, 'id'))
+#   # print(m[k].alias)
+#   # print(hasattr(ArticleResult, 'id'))
 
 
 
   
-  # print(m[k].annotation)
-  if hasattr(m[k], 'model_fields'):
-    print(k, m[k].model_fields)
+#   # print(m[k].annotation)
+#   if hasattr(m[k], 'model_fields'):
+#     print(k, m[k].model_fields)
   
   # print(issubclass(getattr(o, k), pd.BaseModel))
 

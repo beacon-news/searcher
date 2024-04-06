@@ -2,33 +2,45 @@ from pydantic import BaseModel, model_validator, field_validator, conint
 from datetime import datetime
 from enum import Enum
 from dto.article_result import ArticleResult
+import typing
+import types
 
-def flatten_dict_keys(d: dict, key_list: list, parent_key: str=''):
-  """Returns dict keys separated by '.' for nested dicts, in a list."""
 
-  for key, value in d.items():
+# article_search_keys = [
+#   "id",
+#   "categories",
+#   "entities",
+#   "url",
+#   "publish_date",
+#   "author",
+#   "title",
+#   "paragraphs",
+# ]
+
+def flatten_model_attributes(d: BaseModel, keys: set, parent_key: str=''):
+  """Returns model attributes separated by '.' for nested models, in the 'keys' set."""
+
+  for key, field_info in d.model_fields.items():
     if len(parent_key) == 0:
       key_name = key
     else:
       key_name = parent_key + '.' + key
 
-    if isinstance(value, ):
-      flatten_dict_keys(value, key_list, key_name)
+    if type(field_info.annotation) == type(BaseModel):
+      flatten_model_attributes(field_info.annotation, keys, key_name)
+    elif type(field_info.annotation) == types.UnionType:
+      type_args = typing.get_args(field_info.annotation)
+      for t in type_args:
+        if type(t) == type(BaseModel):
+          flatten_model_attributes(t, keys, key_name)
+        else:
+          keys.add(key_name)
     else:
-      key_list.append(key_name)
-
+      keys.add(key_name)
+  
 # find out the flattened keys of ArticleResult
-article_search_keys = [
-  "id",
-  "categories",
-  "entities",
-  "url",
-  "publish_date",
-  "author",
-  "title",
-  "paragraphs",
-]
-# flatten_dict_keys(ArticleResult().model_dump(), article_search_keys)
+article_search_keys = set()
+flatten_model_attributes(ArticleResult, article_search_keys)
 
 
 # model classes
