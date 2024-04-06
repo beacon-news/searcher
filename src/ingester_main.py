@@ -63,7 +63,7 @@ async def process_notification(ids: list[str]):
   log.info(f"stored articles in elasticsearch")
 
 async def main():
-  await es.assert_index()
+  await es.assert_articles_index()
 
   await RedisNotificationConsumer(
     REDIS_HOST,
