@@ -50,6 +50,7 @@ def map_to_article_results(articles: list[Article]) -> ArticleResults:
       id=art.id,
       categories=art.categories,
       entities=art.entities,
+      topics=[t.model_dump() for t in art.topics] if art.topics is not None else None, 
       url=art.url,
       publish_date=art.publish_date,
       author=art.author,

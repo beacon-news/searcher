@@ -27,6 +27,7 @@ class ElasticsearchRepository(Repository):
     "id": "_id",
     "categories": "analyzer.categories",
     "entities": "analyzer.entities",
+    "topics": "topics",
     "url": "article.url",
     "publish_date": "article.publish_date",
     "author": "article.author",
@@ -176,47 +177,38 @@ class ElasticsearchRepository(Repository):
     )
   
   def __build_article_text_query(self, search_options: ArticleQuery) -> dict:
-    id = search_options.id
-    query = search_options.query
-    categories = search_options.categories
-    author = search_options.author
 
+    # query should match at least either the paragraphs or the title
     should_queries = []
-    if query:
+    if search_options.query:
       should_queries.extend([
         {
           "match": {
-            "article.paragraphs": query,
+            "article.paragraphs": search_options.query,
           }
         },
         {
           "match": {
             "article.title": {
-              "query": query,
+              "query": search_options.query,
               "boost": 2,
             }
           }
         },
       ])
     
-    if categories:
-      should_queries.append(
-        {
-          "match": {
-            "article.categories": categories,
-          }
-        }
-      )
+    # categories, author, topic must match if provided, contribute to the score
+    must_queries = []
+    if search_options.categories:
+      must_queries.append(self.__build_article_category_query(search_options))
     
-    if author:
-      should_queries.append(
-        {
-          "match": {
-            "article.author": author
-          }
-        }
-      )
+    if search_options.author:
+      must_queries.append(self.__build_article_author_query(search_options))
     
+    if search_options.topic:
+      must_queries.append(self.__build_article_topic_query(search_options))
+    
+    # date, id, topic_id must match if provided, don't contribute to the score
     date_query = self.__build_date_query(
       field="article.publish_date",
       start=search_options.date_min, 
@@ -224,17 +216,25 @@ class ElasticsearchRepository(Repository):
     )
     filters = [date_query]
     
-    if id is not None:
+    if search_options.id:
       filters.append(self.__build_id_query(search_options.id)) 
     
+    if search_options.topic_ids:
+      filters.append(self.__build_article_topic_id_query(search_options)) 
+
     return {
       "bool": {
+        "must": must_queries,
         "should": should_queries,
+        "minimum_should_match": 1 if len(should_queries) > 0 else 0, # either the paragraphs or the title must contain the searched query
         "filter": filters,
       }
     }
 
   def __build_article_knn_query(self, search_options: ArticleQuery, embeddings: list) -> dict:
+    # every search option provided doesn't contribute to the score, 
+    # the score is only calculated based on embedding cosine similarity
+
     filters = [self.__build_date_query(
       field="article.publish_date",
       start=search_options.date_min,
@@ -242,6 +242,18 @@ class ElasticsearchRepository(Repository):
     )]
     if search_options.id is not None:
       filters.append(self.__build_id_query(search_options))
+    
+    if search_options.categories:
+      filters.append(self.__build_article_category_query(search_options))
+    
+    if search_options.author:
+      filters.append(self.__build_article_author_query(search_options))
+    
+    if search_options.topic_ids:
+      filters.append(self.__build_article_topic_id_query(search_options))
+    
+    if search_options.topic:
+      filters.append(self.__build_article_topic_query(search_options))
 
     return {
       "field": "analyzer.embeddings",
@@ -250,6 +262,35 @@ class ElasticsearchRepository(Repository):
       "k": KNN_K,
       "filter": filters,
     }
+  
+  def __build_article_category_query(self, search_options: ArticleQuery) -> dict:
+    return {
+      "match": {
+        "analyzer.categories": search_options.categories
+      }
+    }
+  
+  def __build_article_author_query(self, search_options: ArticleQuery) -> dict:
+    return {
+      "match": {
+        "article.author": search_options.author
+      }
+    }
+  
+  def __build_article_topic_id_query(self, search_options: ArticleQuery) -> dict:
+    return {
+      "terms": {
+        "topics.topic_ids": search_options.topic_ids
+      }
+    }
+  
+  def __build_article_topic_query(self, search_options: ArticleQuery) -> dict:
+    return {
+      "match": {
+        "topics.topic_names": search_options.topic
+      }
+    }
+  
     
   def __build_date_query(self, field: str, start: datetime, end: datetime) -> dict:
     return {

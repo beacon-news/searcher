@@ -4,18 +4,6 @@ from enum import Enum
 from dto.article_result import ArticleResult
 from dto.utils import flatten_model_attributes
 
-
-# article_search_keys = [
-#   "id",
-#   "categories",
-#   "entities",
-#   "url",
-#   "publish_date",
-#   "author",
-#   "title",
-#   "paragraphs",
-# ]
-
   
 # find out the flattened keys of ArticleResult
 article_search_keys = set()
@@ -43,8 +31,11 @@ class ArticleQuery(BaseModel):
   tags: str | None = None
 
   # ISO8601 date format, see pydantic docs
-  date_min: datetime = datetime.fromtimestamp(0)
+  date_min: datetime = datetime.fromisoformat('1000-01-01T00:00:00')
   date_max: datetime = datetime.now()
+
+  topic_ids: list[str] | None = None
+  topic: str | None = None
 
   # only applicable to text search, semantic search will always limit the returned results
   size: conint(gt=0, lt=30) = 10 # type: ignore
@@ -72,15 +63,23 @@ class ArticleQuery(BaseModel):
   @model_validator(mode='after')
   def some_query_must_be_present(self):
     
-    values = [
+    str_values = [
       self.id,
       self.query,
       self.categories,
       self.author,
-      self.tags
+      self.tags,
+      self.topic,
     ]
-    for v in values:
+    for v in str_values:
       if v is not None and v.strip() != "":
+        return self
+    
+    list_values = [
+      self.topic_ids,
+    ]
+    for v in list_values:
+      if v is not None and len(v) > 0:
         return self
       
     keys = [
@@ -89,6 +88,8 @@ class ArticleQuery(BaseModel):
       "categories",
       "author",
       "tags",
+      "topic",
+      "topic_ids",
     ]
     
     raise ValueError(f"At least one of {keys} must be specified.")
@@ -96,7 +97,7 @@ class ArticleQuery(BaseModel):
   @model_validator(mode='after')
   def query_present_for_semantic_and_combined_search(self):
     if (
-      self.search_type == ArticleQueryType.semantic or self.search_type == ArticleQueryType.combined and (
+      (self.search_type == ArticleQueryType.semantic or self.search_type == ArticleQueryType.combined) and (
         self.query is None or self.query.strip() == ""
       )
     ):
