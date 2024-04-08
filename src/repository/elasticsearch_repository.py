@@ -25,11 +25,16 @@ class ElasticsearchRepository(Repository):
   # map the returned attributes based on these mappings
   article_search_keys_to_repo_model = {
     "id": "_id",
-    "categories": "analyzer.categories",
+    "categories": [
+      "article.categories",
+      "analyzer.categories",
+    ],
     "entities": "analyzer.entities",
     "topics": "topics",
     "url": "article.url",
     "publish_date": "article.publish_date",
+    "source": "article.source",
+    "image": "article.image",
     "author": "article.author",
     "title": "article.title",
     "paragraphs": "article.paragraphs",
@@ -82,16 +87,11 @@ class ElasticsearchRepository(Repository):
             "properties": {
               "categories": {
                 "type": "text",
-                "fields": {
-                  "keyword": {
-                    "type": "keyword",
-                    "ignore_above": 256
-                  }
-                }
+                "enabled": "false", # don't index only the analyzer-generated categories
               },
               "embeddings": {
                 "type": "dense_vector",
-                "dims": 384, # depends on model used
+                "dims": 384, # depends on the embeddings model
               },
               "entities": {
                 "type": "text"
@@ -106,8 +106,22 @@ class ElasticsearchRepository(Repository):
               "url": {
                 "type": "keyword",
               },
+              "source": {
+                "type": "text",
+                # keyword mapping needed so we can do aggregations
+                "fields": {
+                  "keyword": {
+                    "type": "keyword",
+                    "ignore_above": 256
+                  }
+                }
+              },
               "publish_date": {
                 "type": "date",
+              },
+              "image": {
+                "type": "keyword",
+                "enabled": "false", # don't index image urls
               },
               "author": {
                 "type": "text",
@@ -117,6 +131,16 @@ class ElasticsearchRepository(Repository):
               },
               "paragraphs": {
                 "type": "text",
+              },
+              "categories": {
+                "type": "text",
+                # keyword mapping needed so we can do aggregations
+                "fields": {
+                  "keyword": {
+                    "type": "keyword",
+                    "ignore_above": 256
+                  }
+                }
               },
             }
           }
@@ -144,7 +168,7 @@ class ElasticsearchRepository(Repository):
     res = await self.__search_articles_text(search_options)
     return self.__map_to_articles(res['hits']['hits'])
   
-  async def __search_articles_text(self, search_options: ArticleQuery) -> list:
+  async def __search_articles_text(self, search_options: ArticleQuery) -> dict:
     text_query = self.__build_article_text_query(search_options)
     return await self.es.search(
       index=self.article_index, 
@@ -161,11 +185,8 @@ class ElasticsearchRepository(Repository):
     res = await self.__search_articles_embeddings(search_options, embeddings)
     return self.__map_to_articles(res['hits']['hits'])
   
-  async def __search_articles_embeddings(self, search_options: ArticleQuery, embeddings: list) -> list:
+  async def __search_articles_embeddings(self, search_options: ArticleQuery, embeddings: list) -> dict:
     knn_query = self.__build_article_knn_query(search_options, embeddings)
-    if knn_query is None:
-      return []
-
     return await self.es.search(
       index=self.article_index, 
       knn=knn_query, 
@@ -199,6 +220,8 @@ class ElasticsearchRepository(Repository):
     
     # categories, author, topic must match if provided, contribute to the score
     must_queries = []
+    if search_options.source:
+      must_queries.append(self.__build_article_source_query(search_options))
     if search_options.categories:
       must_queries.append(self.__build_article_category_query(search_options))
     
@@ -243,6 +266,9 @@ class ElasticsearchRepository(Repository):
     if search_options.id is not None:
       filters.append(self.__build_id_query(search_options))
     
+    if search_options.source:
+      filters.append(self.__build_article_source_query(search_options))
+
     if search_options.categories:
       filters.append(self.__build_article_category_query(search_options))
     
@@ -262,11 +288,18 @@ class ElasticsearchRepository(Repository):
       "k": KNN_K,
       "filter": filters,
     }
+
+  def __build_article_source_query(self, search_options: ArticleQuery) -> dict:
+    return {
+      "match": {
+        "article.source": search_options.source
+      }
+    }
   
   def __build_article_category_query(self, search_options: ArticleQuery) -> dict:
     return {
       "match": {
-        "analyzer.categories": search_options.categories
+        "article.categories": search_options.categories
       }
     }
   
@@ -335,7 +368,14 @@ class ElasticsearchRepository(Repository):
     if keys is None:
       # returns every key by default
       return None 
-    return [mapping[key] for key in keys]
+
+    mapped = []
+    for k in keys:
+      if type(k) == str:
+        mapped.append(mapping[k])
+      elif type(k) == list:
+        mapped.append(*mapping[k])
+    return mapped
 
   def __map_to_articles(self, docs: list[dict]) -> list[Article]:
     # map from repo model to domain model
@@ -352,23 +392,26 @@ class ElasticsearchRepository(Repository):
       if 'article' in source:
         art = source['article']
         article.url = art.get('url', None)
+        article.source = art.get('source', None)
         article.publish_date = art.get('publish_date', None)
+        article.image = art.get('image', None)
         author = art.get('author', None)
         article.author = "\n".join(author) if author is not None else None
         title = art.get('title', None)
         article.title = "\n".join(title) if title is not None else None
         article.paragraphs = art.get('paragraphs', None)
-      
+
+        article.categories = art.get('categories', None)
+
       if 'analyzer' in source:
         # TODO: embeddings are never returned, they are excluded from every search
         analyzer = source['analyzer']
-        article.categories = analyzer.get('categories', None)
+        article.analyzed_categories = analyzer.get('categories', None)
         article.entities = analyzer.get('entities', None)
         article.embeddings = analyzer.get('embeddings', None)
       
       if 'topics' in source:
         topics = source['topics']
-
         article_topics = [ArticleTopic(
           id=id, 
           topic=topic) for id, topic in zip(topics['topic_ids'], topics['topic_names'])

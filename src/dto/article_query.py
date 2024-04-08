@@ -25,10 +25,9 @@ class ArticleQuery(BaseModel):
 
   categories: str | None = None
 
-  author: str | None = None
+  source: str | None = None
 
-  # TODO: add tags to scrape_configs and elastic
-  tags: str | None = None
+  author: str | None = None
 
   # ISO8601 date format, see pydantic docs
   date_min: datetime = datetime.fromisoformat('1000-01-01T00:00:00')
@@ -67,8 +66,8 @@ class ArticleQuery(BaseModel):
       self.id,
       self.query,
       self.categories,
+      self.source,
       self.author,
-      self.tags,
       self.topic,
     ]
     for v in str_values:
@@ -86,8 +85,8 @@ class ArticleQuery(BaseModel):
       "id",
       "query",
       "categories",
+      "source",
       "author",
-      "tags",
       "topic",
       "topic_ids",
     ]

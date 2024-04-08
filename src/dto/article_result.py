@@ -10,6 +10,8 @@ class ArticleResult(BaseModel):
   topics: list[dict] | None = None
   url: str | None = None
   publish_date: datetime | None = None
+  source: str | None = None
+  image: str | None = None
   author: str | None = None
   title: str | None = None
   paragraphs: list[str] | None = None

@@ -8,6 +8,7 @@ from dto.article_result import *
 from dto.topic_query import *
 from dto.topic_result import *
 from domain.article import *
+from domain.topic import *
 from repository import Repository
 
 from utils import log_utils
