@@ -36,8 +36,11 @@ class ArticleQuery(BaseModel):
   topic_ids: list[str] | None = None
   topic: str | None = None
 
+  # pagination
+  page: conint(ge=0) = 0# type: ignore = 0
+
   # only applicable to text search, semantic search will always limit the returned results
-  size: conint(gt=0, lt=30) = 10 # type: ignore
+  page_size: conint(ge=1, le=30) = 10 # type: ignore
 
   search_type: ArticleQueryType = ArticleQueryType.text
 
@@ -59,39 +62,42 @@ class ArticleQuery(BaseModel):
     # all keys are valid, return them
     return v
 
-  @model_validator(mode='after')
-  def some_query_must_be_present(self):
+
+  # if nothing is present, simply returns the most recent articles...
+
+  # @model_validator(mode='after')
+  # def some_query_must_be_present(self):
     
-    str_values = [
-      self.id,
-      self.query,
-      self.categories,
-      self.source,
-      self.author,
-      self.topic,
-    ]
-    for v in str_values:
-      if v is not None and v.strip() != "":
-        return self
+  #   str_values = [
+  #     self.id,
+  #     self.query,
+  #     self.categories,
+  #     self.source,
+  #     self.author,
+  #     self.topic,
+  #   ]
+  #   for v in str_values:
+  #     if v is not None and v.strip() != "":
+  #       return self
     
-    list_values = [
-      self.topic_ids,
-    ]
-    for v in list_values:
-      if v is not None and len(v) > 0:
-        return self
+  #   list_values = [
+  #     self.topic_ids,
+  #   ]
+  #   for v in list_values:
+  #     if v is not None and len(v) > 0:
+  #       return self
       
-    keys = [
-      "id",
-      "query",
-      "categories",
-      "source",
-      "author",
-      "topic",
-      "topic_ids",
-    ]
+  #   keys = [
+  #     "id",
+  #     "query",
+  #     "categories",
+  #     "source",
+  #     "author",
+  #     "topic",
+  #     "topic_ids",
+  #   ]
     
-    raise ValueError(f"At least one of {keys} must be specified.")
+  #   raise ValueError(f"At least one of {keys} must be specified.")
   
   @model_validator(mode='after')
   def query_present_for_semantic_and_combined_search(self):

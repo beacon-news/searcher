@@ -18,7 +18,9 @@ class TopicQuery(BaseModel):
   date_min: datetime | None = None
   date_max: datetime | None = None
 
-  size: conint(gt=0, lt=30) = 10  # type: ignore
+  # pagination
+  page: conint(ge=0) # type: ignore = 0
+  page_size: conint(ge=1, le=30) = 10 # type: ignore
 
   # return only a subset of a TopicResult
   # None means return all attributes

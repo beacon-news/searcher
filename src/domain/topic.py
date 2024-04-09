@@ -26,3 +26,7 @@ class Topic(pydantic.BaseModel):
   topic: str | None = None
   count: int | None = None
   representative_articles: list[TopicArticle] | None = None
+
+class TopicList(pydantic.BaseModel):
+  total_count: int
+  results: list[Topic]

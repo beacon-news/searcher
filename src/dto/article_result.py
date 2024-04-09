@@ -18,4 +18,5 @@ class ArticleResult(BaseModel):
 
 
 class ArticleResults(BaseModel):
+  total: int
   results: list[ArticleResult]

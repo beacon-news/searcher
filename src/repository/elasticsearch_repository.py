@@ -4,6 +4,8 @@ import asyncio
 from elasticsearch import exceptions, AsyncElasticsearch
 from dto.article_query import ArticleQuery
 from dto.topic_query import TopicQuery
+from dto.category_result import *
+from dto.category_query import *
 from repository.repository import Repository
 from domain.article import *
 from domain.topic import *
@@ -24,7 +26,7 @@ class ElasticsearchRepository(Repository):
   
   # map the returned attributes based on these mappings
   article_search_keys_to_repo_model = {
-    "id": "_id",
+    "id": "id_is_always_returned", # causes nothing to be returned for the 'id', but the source's '_id' is used which is always returned
     "categories": [
       "article.categories",
       "analyzer.categories",
@@ -41,11 +43,48 @@ class ElasticsearchRepository(Repository):
   }
 
   topic_search_keys_to_repo_model = {
-    "id": "_id",
+    "id": "id_is_always_returned", # causes nothing to be returned for the 'id', but the source's '_id' is used which is always returned
     "query": "query",
     "topic": "topic",
     "count": "count",
     "representative_articles": "representative_articles",
+  }
+
+  article_sort_options = {
+    "track_scores": True,
+    "sort": [
+      {
+        "_score": {
+          "order": "desc"
+        }
+      },
+      {
+        "article.publish_date": {
+          "order": "desc"
+        }
+      }
+    ]
+  }
+
+  topic_sort_options = {
+    "track_scores": True,
+    "sort": [
+      {
+        "count": {
+          "order": "desc"
+        }
+      },
+      {
+        "_score": {
+          "order": "desc"
+        }
+      },
+      {
+        "query.publish_date.end": {
+          "order": "desc"
+        }
+      }
+    ]
   }
 
   def __init__(
@@ -150,30 +189,44 @@ class ElasticsearchRepository(Repository):
       if e.message == "resource_already_exists_exception":
         self.log.info(f"index {self.article_index} already exists")
   
-  async def search_articles_combined(self, search_options: ArticleQuery, embeddings: list) -> list[Article]:
+  async def search_articles_combined(self, search_options: ArticleQuery, embeddings: list) -> ArticleList:
     res_text = asyncio.Task(self.__search_articles_text(search_options))
     res_em = asyncio.Task(self.__search_articles_embeddings(search_options, embeddings))
     res_text = await res_text
     res_em = await res_em
 
-    if len(res_text) == 0:
-      return self.__map_to_articles(res_em['hits']['hits'])
-    elif len(res_em) == 0:
-      return self.__map_to_articles(res_text['hits']['hits'])
+    res_text_count = res_text['hits']['total']['value']
+    res_em_count = res_em['hits']['total']['value']
+
+    if res_text_count == 0:
+      return self.__map_to_articles(res_em['hits'])
+    elif res_em_count == 0:
+      return self.__map_to_articles(res_text['hits'])
     
-    reranked = self.__re_rank_rrf(res_text['hits']['hits'], res_em['hits']['hits'])
-    return self.__map_to_articles([doc['doc'] for doc in reranked])
+    reranked_docs = self.__re_rank_rrf(res_text['hits']['hits'], res_em['hits']['hits'])
+    
+    # combine results, swapping parts out so it looks like a single result
+    combined = res_text
+
+    # precise total count cannot be provided because of overlap between the 2 queries, so the max is returned
+    combined['hits']['total']['value'] = max(res_text_count, res_em_count)
+    combined['hits']['hits'] = reranked_docs
+    
+    return self.__map_to_articles(combined)
   
-  async def search_articles_text(self, search_options: ArticleQuery) -> list[Article]:
+  async def search_articles_text(self, search_options: ArticleQuery) -> ArticleList:
     res = await self.__search_articles_text(search_options)
-    return self.__map_to_articles(res['hits']['hits'])
+    return self.__map_to_articles(res['hits'])
   
   async def __search_articles_text(self, search_options: ArticleQuery) -> dict:
     text_query = self.__build_article_text_query(search_options)
     return await self.es.search(
       index=self.article_index, 
       query=text_query,
-      size=search_options.size,
+      from_=search_options.page * search_options.page_size,
+      size=search_options.page_size,
+      sort=self.article_sort_options["sort"],
+      track_scores=self.article_sort_options["track_scores"],
       source_excludes=["analyzer.embeddings"],
       source_includes=self.__map_search_keys(
         keys=search_options.return_attributes, 
@@ -181,15 +234,17 @@ class ElasticsearchRepository(Repository):
       )
     )
   
-  async def search_articles_embeddings(self, search_options: ArticleQuery, embeddings: list) -> list[Article]:
+  async def search_articles_embeddings(self, search_options: ArticleQuery, embeddings: list) -> ArticleList:
     res = await self.__search_articles_embeddings(search_options, embeddings)
-    return self.__map_to_articles(res['hits']['hits'])
+    return self.__map_to_articles(res['hits'])
   
   async def __search_articles_embeddings(self, search_options: ArticleQuery, embeddings: list) -> dict:
     knn_query = self.__build_article_knn_query(search_options, embeddings)
     return await self.es.search(
       index=self.article_index, 
       knn=knn_query, 
+      sort=self.article_sort_options["sort"],
+      track_scores=self.article_sort_options["track_scores"],
       source_excludes=["analyzer.embeddings"],
       source_includes=self.__map_search_keys(
         keys=search_options.return_attributes, 
@@ -218,6 +273,7 @@ class ElasticsearchRepository(Repository):
         },
       ])
     
+    # TODO: add this as filters as well?
     # categories, author, topic must match if provided, contribute to the score
     must_queries = []
     if search_options.source:
@@ -361,7 +417,7 @@ class ElasticsearchRepository(Repository):
             'rank': 1.0 / (k + i+1) 
           }
       
-      return [v for _, v in sorted(docs.items(), key=lambda doc: doc[1]['rank'], reverse=True)]
+      return [v['doc'] for _, v in sorted(docs.items(), key=lambda doc: doc[1]['rank'], reverse=True)]
 
   def __map_search_keys(self, keys: list[str] | None, mapping: dict) -> list[str] | None:
     # reverse mapping from DTO keys to repo model
@@ -371,18 +427,23 @@ class ElasticsearchRepository(Repository):
 
     mapped = []
     for k in keys:
-      if type(k) == str:
+      if type(mapping[k]) == str:
         mapped.append(mapping[k])
-      elif type(k) == list:
-        mapped.append(*mapping[k])
+      elif type(mapping[k]) == list:
+        mapped.extend(mapping[k])
+    print(mapped)
     return mapped
 
-  def __map_to_articles(self, docs: list[dict]) -> list[Article]:
+  def __map_to_articles(self, doc_hits: dict) -> ArticleList:
     # map from repo model to domain model
 
-    res: list[Article] = []
-    for doc in docs:
+    articles: list[Article] = []
+    total_count = doc_hits['total']['value']
+
+    for doc in doc_hits["hits"]:
       source = doc['_source']
+
+      # at least the '_id' field should always be present
       id = doc.get('_id', None)
 
       if id is None:
@@ -419,22 +480,26 @@ class ElasticsearchRepository(Repository):
         if len(article_topics) != 0:
           article.topics = article_topics
 
-      res.append(article)
+      articles.append(article)
 
-    return res
+    res = ArticleList(articles=articles, total_count=total_count)
+    return res 
 
-  async def search_topics(self, topic_query: TopicQuery) -> list[Topic]:
+  async def search_topics(self, topic_query: TopicQuery) -> TopicList:
     query = self.__build_topic_query(topic_query)
     docs = await self.es.search(
       index=self.topic_index, 
       query=query,
-      size=topic_query.size,
+      sort=self.topic_sort_options["sort"],
+      track_scores=self.topic_sort_options["track_scores"],
+      from_=topic_query.page * topic_query.page_size,
+      size=topic_query.page_size,
       source_includes=self.__map_search_keys(
         keys=topic_query.return_attributes,
         mapping=self.topic_search_keys_to_repo_model
       )
     )
-    return self.__map_to_topics(docs["hits"]["hits"])
+    return self.__map_to_topics(docs["hits"])
   
   def __build_topic_query(self, topic_query: TopicQuery) -> dict:
     filters = []
@@ -484,12 +549,16 @@ class ElasticsearchRepository(Repository):
       }
     }
   
-  def __map_to_topics(self, docs: list[dict]) -> list[Topic]:
+  def __map_to_topics(self, doc_hits: list[dict]) -> TopicList:
     # convert to domain model
 
-    res: list[Topic] = []
-    for doc in docs:
+    topics: list[Article] = []
+    total_count = doc_hits['total']['value']
+
+    for doc in doc_hits['hits']:
       source = doc['_source']
+
+      # at least the '_id' field should always be present
       id = doc.get('_id', None)
 
       if id is None:
@@ -519,6 +588,38 @@ class ElasticsearchRepository(Repository):
           ) for ra in source['representative_articles']
         ]
 
-      res.append(topic)
+      topics.append(topic)
 
+    res = TopicList(topics=topics, total_count=total_count)
     return res
+
+
+  async def get_categories(self, category_query: CategoryQuery) -> CategoryResults:
+
+    result = await self.es.search(
+      index=self.article_index,
+      aggs=self.__build_categories_aggregation(category_query.size),
+      size=0, # don't return any articles, only the categories
+    )
+
+    buckets = result['aggregations']['categories']['buckets']
+
+    res = CategoryResults(
+      total=category_query.size,
+      results=[CategoryResult(
+        name=b['key'],
+        article_count=b['doc_count'],
+      ) for b in buckets],
+    ) 
+    return res
+
+  def __build_categories_aggregation(self, size: int) -> dict:
+    # only get up to the top 'size' categories
+    return {
+      "categories": {
+        "terms": {
+          "field": "article.categories.keyword",
+          "size": size,
+        }
+      }
+    }

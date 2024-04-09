@@ -16,4 +16,5 @@ class TopicResult(BaseModel):
 
 
 class TopicResults(BaseModel):
+  total: int
   results: list[TopicResult]

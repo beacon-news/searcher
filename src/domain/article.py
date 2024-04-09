@@ -33,3 +33,7 @@ class Article(pydantic.BaseModel):
   # topics part
   # topics are optional, will be added later by the topic modeler
   topics: list[ArticleTopic] | None = None
+
+class ArticleList(pydantic.BaseModel):
+  articles: list[Article]
+  total_count: int
