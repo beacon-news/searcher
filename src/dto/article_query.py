@@ -1,4 +1,5 @@
-from pydantic import BaseModel, model_validator, field_validator, conint
+from pydantic import BaseModel, model_validator, field_validator, Field
+from typing import Annotated
 from datetime import datetime
 from enum import Enum
 from dto.article_result import ArticleResult
@@ -23,6 +24,7 @@ class ArticleQuery(BaseModel):
   # for title and paragraph
   query: str | None = None
 
+  category_ids: list[str] | None = None
   categories: str | None = None
 
   source: str | None = None
@@ -37,10 +39,10 @@ class ArticleQuery(BaseModel):
   topic: str | None = None
 
   # pagination
-  page: conint(ge=0) = 0# type: ignore = 0
+  page: Annotated[int, Field(ge=0)] = 0
 
   # only applicable to text search, semantic search will always limit the returned results
-  page_size: conint(ge=1, le=30) = 10 # type: ignore
+  page_size: Annotated[int, Field(ge=1, le=30)] = 10
 
   search_type: ArticleQueryType = ArticleQueryType.text
 
@@ -103,7 +105,7 @@ class ArticleQuery(BaseModel):
   def query_present_for_semantic_and_combined_search(self):
     if (
       (self.search_type == ArticleQueryType.semantic or self.search_type == ArticleQueryType.combined) and (
-        self.query is None or self.query.strip() == ""
+        self.query is None or self.query.isspace()
       )
     ):
       raise ValueError(f"'query' must not be empty for 'semantic' or 'combined' search.")

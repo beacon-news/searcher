@@ -10,12 +10,15 @@ class TopicArticle(pydantic.BaseModel):
   author: list[str]
   title: list[str]
 
+
 class PublishDateFilter(pydantic.BaseModel):
   start: datetime
   end: datetime
 
+
 class TopicArticleQuery(pydantic.BaseModel):
   publish_date: PublishDateFilter
+
 
 # every field other than the 'id' can be None, because
 # they can be excluded from the search and are not always returned
@@ -26,6 +29,7 @@ class Topic(pydantic.BaseModel):
   topic: str | None = None
   count: int | None = None
   representative_articles: list[TopicArticle] | None = None
+
 
 class TopicList(pydantic.BaseModel):
   total_count: int

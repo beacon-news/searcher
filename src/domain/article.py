@@ -1,5 +1,6 @@
 import pydantic
 from datetime import datetime
+from domain.category import Category
 
 
 class ArticleTopic(pydantic.BaseModel):
@@ -23,16 +24,17 @@ class Article(pydantic.BaseModel):
   analyze_time: datetime | None = None
 
   # contains both the analyzed and the metadata categories
-  categories: list[str] | None = None
+  categories: list[Category] | None = None
 
   # subset of 'categories', only contains the categories that were assigned by the analyzer
-  analyzed_categories: list[str] | None = None 
+  analyzed_categories: list[Category] | None = None 
   embeddings: list[float] | None = None
   entities: list[str] | None = None
 
   # topics part
   # topics are optional, will be added later by the topic modeler
   topics: list[ArticleTopic] | None = None
+
 
 class ArticleList(pydantic.BaseModel):
   articles: list[Article]

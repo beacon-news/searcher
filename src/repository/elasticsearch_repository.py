@@ -29,7 +29,7 @@ class ElasticsearchRepository(Repository):
     "id": "id_is_always_returned", # causes nothing to be returned for the 'id', but the source's '_id' is used which is always returned
     "categories": [
       "article.categories",
-      "analyzer.categories",
+      "analyzer.category_ids",
     ],
     "entities": "analyzer.entities",
     "topics": "topics",
@@ -97,8 +97,9 @@ class ElasticsearchRepository(Repository):
       log_level: int = logging.INFO
   ):
     self.configure_logging(log_level)
-    self.article_index = "articles"
-    self.topic_index = "topics"
+    self.articles_index = "articles"
+    self.topics_index = "topics"
+    self.categories_index = "categories"
 
     # TODO: secure with TLS
     # TODO: add some form of auth
@@ -109,8 +110,8 @@ class ElasticsearchRepository(Repository):
   # TODO: assert topic index
   async def assert_articles_index(self):
     try:
-      self.log.info(f"creating/asserting index '{self.article_index}'")
-      await self.es.indices.create(index=self.article_index, mappings={
+      self.log.info(f"creating/asserting index '{self.articles_index}'")
+      await self.es.indices.create(index=self.articles_index, mappings={
         "properties": {
           "topics": {
             "properties": {
@@ -124,9 +125,11 @@ class ElasticsearchRepository(Repository):
           },
           "analyzer": {
             "properties": {
-              "categories": {
-                "type": "text",
-                "enabled": "false", # don't index only the analyzer-generated categories
+              "category_ids": {
+                # don't index the analyzer-generated categories, index the merged ones instead
+                # only to be able to differentiate between the predicted and predefined categories
+                "enabled": "false",
+                "type": "keyword",
               },
               "embeddings": {
                 "type": "dense_vector",
@@ -172,22 +175,55 @@ class ElasticsearchRepository(Repository):
                 "type": "text",
               },
               "categories": {
-                "type": "text",
-                # keyword mapping needed so we can do aggregations
-                "fields": {
-                  "keyword": {
-                    "type": "keyword",
-                    "ignore_above": 256
+                "properties": {
+                  "ids" : {
+                    "type": "keyword"
+                  },
+                  "names": {
+                    "type": "text",
+                    # keyword mapping needed so we can do aggregations
+                    "fields": {
+                      "keyword": {
+                        "type": "keyword",
+                        "ignore_above": 256
+                      }
+                    }
                   }
                 }
               },
+              # "categories": {
+              #   "type": "text",
+              #   # keyword mapping needed so we can do aggregations
+              #   "fields": {
+              #     "keyword": {
+              #       "type": "keyword",
+              #       "ignore_above": 256
+              #     }
+              #   }
+              # },
             }
           }
         }
       })
     except exceptions.BadRequestError as e:
       if e.message == "resource_already_exists_exception":
-        self.log.info(f"index {self.article_index} already exists")
+        self.log.info(f"index {self.articles_index} already exists")
+
+  async def assert_categories_index(self):
+    try:
+      self.log.info(f"creating/asserting index '{self.categories_index}'")
+      await self.es.indices.create(index=self.categories_index, mappings={
+        "properties": {
+          "name": {
+            "type": "text",
+          }
+        }
+      })
+    except exceptions.BadRequestError as e:
+      if e.message == "resource_already_exists_exception":
+        self.log.info(f"index {self.categories_index} already exists")
+
+  # TODO: add topic index assertion
   
   async def search_articles_combined(self, search_options: ArticleQuery, embeddings: list) -> ArticleList:
     res_text = asyncio.Task(self.__search_articles_text(search_options))
@@ -221,7 +257,7 @@ class ElasticsearchRepository(Repository):
   async def __search_articles_text(self, search_options: ArticleQuery) -> dict:
     text_query = self.__build_article_text_query(search_options)
     return await self.es.search(
-      index=self.article_index, 
+      index=self.articles_index, 
       query=text_query,
       from_=search_options.page * search_options.page_size,
       size=search_options.page_size,
@@ -241,7 +277,7 @@ class ElasticsearchRepository(Repository):
   async def __search_articles_embeddings(self, search_options: ArticleQuery, embeddings: list) -> dict:
     knn_query = self.__build_article_knn_query(search_options, embeddings)
     return await self.es.search(
-      index=self.article_index, 
+      index=self.articles_index, 
       knn=knn_query, 
       sort=self.article_sort_options["sort"],
       track_scores=self.article_sort_options["track_scores"],
@@ -277,15 +313,16 @@ class ElasticsearchRepository(Repository):
     # categories, author, topic must match if provided, contribute to the score
     must_queries = []
     if search_options.source:
-      must_queries.append(self.__build_article_source_query(search_options))
-    if search_options.categories:
-      must_queries.append(self.__build_article_category_query(search_options))
+      must_queries.append(self.__build_article_source_query(search_options.source))
     
     if search_options.author:
-      must_queries.append(self.__build_article_author_query(search_options))
+      must_queries.append(self.__build_article_author_query(search_options.author))
     
+    if search_options.categories:
+      must_queries.append(self.__build_article_category_query(search_options.categories))
+
     if search_options.topic:
-      must_queries.append(self.__build_article_topic_query(search_options))
+      must_queries.append(self.__build_article_topic_query(search_options.topic))
     
     # date, id, topic_id must match if provided, don't contribute to the score
     date_query = self.__build_date_query(
@@ -298,9 +335,12 @@ class ElasticsearchRepository(Repository):
     if search_options.id:
       filters.append(self.__build_id_query(search_options.id)) 
     
-    if search_options.topic_ids:
-      filters.append(self.__build_article_topic_id_query(search_options)) 
+    if search_options.category_ids:
+      must_queries.append(self.__build_article_category_id_query(search_options.category_ids))
 
+    if search_options.topic_ids:
+      filters.append(self.__build_article_topic_id_query(search_options.topic_ids)) 
+    
     return {
       "bool": {
         "must": must_queries,
@@ -320,22 +360,26 @@ class ElasticsearchRepository(Repository):
       end=search_options.date_max
     )]
     if search_options.id is not None:
-      filters.append(self.__build_id_query(search_options))
+      filters.append(self.__build_id_query(search_options.id))
     
     if search_options.source:
-      filters.append(self.__build_article_source_query(search_options))
+      filters.append(self.__build_article_source_query(search_options.source))
+
+    if search_options.author:
+      filters.append(self.__build_article_author_query(search_options.author))
 
     if search_options.categories:
-      filters.append(self.__build_article_category_query(search_options))
-    
-    if search_options.author:
-      filters.append(self.__build_article_author_query(search_options))
-    
-    if search_options.topic_ids:
-      filters.append(self.__build_article_topic_id_query(search_options))
+      filters.append(self.__build_article_category_query(search_options.categories))
+
+    if search_options.category_ids:
+      filters.append(self.__build_article_category_id_query(search_options.category_ids))
     
     if search_options.topic:
-      filters.append(self.__build_article_topic_query(search_options))
+      filters.append(self.__build_article_topic_query(search_options.topic))
+
+    if search_options.topic_ids:
+      filters.append(self.__build_article_topic_id_query(search_options.topic_ids))
+    
 
     return {
       "field": "analyzer.embeddings",
@@ -345,41 +389,47 @@ class ElasticsearchRepository(Repository):
       "filter": filters,
     }
 
-  def __build_article_source_query(self, search_options: ArticleQuery) -> dict:
+  def __build_article_source_query(self, source: str) -> dict:
     return {
       "match": {
-        "article.source": search_options.source
+        "article.source": source
+      }
+    }
+
+  def __build_article_category_id_query(self, ids: list[str]) -> dict:
+    return {
+      "match": {
+        "article.categories.ids": ids
       }
     }
   
-  def __build_article_category_query(self, search_options: ArticleQuery) -> dict:
+  def __build_article_category_query(self, categories: str) -> dict:
     return {
       "match": {
-        "article.categories": search_options.categories
+        "article.categories.names": categories
       }
     }
   
-  def __build_article_author_query(self, search_options: ArticleQuery) -> dict:
+  def __build_article_author_query(self, author: str) -> dict:
     return {
       "match": {
-        "article.author": search_options.author
+        "article.author": author
       }
     }
   
-  def __build_article_topic_id_query(self, search_options: ArticleQuery) -> dict:
+  def __build_article_topic_id_query(self, ids: list[str]) -> dict:
     return {
       "terms": {
-        "topics.topic_ids": search_options.topic_ids
+        "topics.topic_ids": ids
       }
     }
   
-  def __build_article_topic_query(self, search_options: ArticleQuery) -> dict:
+  def __build_article_topic_query(self, topic: str) -> dict:
     return {
       "match": {
-        "topics.topic_names": search_options.topic
+        "topics.topic_names": topic
       }
     }
-  
     
   def __build_date_query(self, field: str, start: datetime, end: datetime) -> dict:
     return {
@@ -462,14 +512,25 @@ class ElasticsearchRepository(Repository):
         article.title = "\n".join(title) if title is not None else None
         article.paragraphs = art.get('paragraphs', None)
 
-        article.categories = art.get('categories', None)
+        categories = art.get('categories', None)
+        if categories:
+          article.categories = [
+            Category(
+              id=id,
+              name=name
+            ) for id, name in zip(categories['ids'], categories['names'])
+          ] 
 
       if 'analyzer' in source:
         # TODO: embeddings are never returned, they are excluded from every search
         analyzer = source['analyzer']
-        article.analyzed_categories = analyzer.get('categories', None)
         article.entities = analyzer.get('entities', None)
         article.embeddings = analyzer.get('embeddings', None)
+
+        # analyzed categories can only be constructed if the merged categories are present
+        analyzer_category_ids = analyzer.get('category_ids', None)
+        if analyzer_category_ids and article.categories:
+          article.analyzed_categories = [cat for cat in article.categories if cat.id in analyzer_category_ids]
       
       if 'topics' in source:
         topics = source['topics']
@@ -488,7 +549,7 @@ class ElasticsearchRepository(Repository):
   async def search_topics(self, topic_query: TopicQuery) -> TopicList:
     query = self.__build_topic_query(topic_query)
     docs = await self.es.search(
-      index=self.topic_index, 
+      index=self.topics_index, 
       query=query,
       sort=self.topic_sort_options["sort"],
       track_scores=self.topic_sort_options["track_scores"],
@@ -521,17 +582,15 @@ class ElasticsearchRepository(Repository):
       filters.append(count_query)
 
     # query so that both the start and end is in the queried range
-    date_min = datetime.fromtimestamp(0) if topic_query.date_min is None else topic_query.date_min
-    date_max = datetime.now() if topic_query.date_max is None else topic_query.date_max
     filters.append(self.__build_date_query(
       field="query.publish_date.start",
-      start=date_min, 
-      end=date_max,
+      start=topic_query.date_min, 
+      end=topic_query.date_max,
     ))
     filters.append(self.__build_date_query(
       field="query.publish_date.end",
-      start=date_min, 
-      end=date_max,
+      start=topic_query.date_min, 
+      end=topic_query.date_max,
     ))
 
     must_queries = []
@@ -594,18 +653,68 @@ class ElasticsearchRepository(Repository):
     return res
 
 
-  async def get_categories(self, category_query: CategoryQuery) -> CategoryResults:
+  async def search_categories(self, category_query: CategoryQuery) -> CategoryResults:
+    # filter_queries = []
+    # if category_query.ids is not None: 
+    #   if category_query.top_n:
+    #     filter_queries.append(self.__build_article_category_id_query(category_query.ids))
+    #   else:
+    #     for id in category_query.ids:
+    #       filter_queries.append(self.__build_id_query(id))
+    
+    # must_queries = []
+    # if category_query.names is not None:
+    #   if category_query.top_n:
+    #     must_queries.append(self.__build_article_category_query(" ".join(category_query.names)))
+    #   else:
+    #     for name in category_query.names:
+    #       must_queries.append(self.__build_category_name_query(name))
 
+    # query = {
+    #   "bool": {
+    #     "must": must_queries,
+    #     "filter": filter_queries,
+    #   }
+    # }
+
+    # must_queries = []
+    # should_queries = []
+    # if category_query.top_n:
+    #   if category_query.names:
+    #     must_queries.append(self.__build_article_category_query(" ".join(category_query.names)))
+    
+    # else:
+    #   if category_query.names:
+    #     for name in category_query.names:
+    #       should_queries.append(self.__build_category_name_query(name))
+    
+    
+    # query = {
+    #   "bool": {
+    #     "must": must_queries,
+    #     "filter": filter_queries,
+    #     "should": should_queries,
+    #   }
+    # }
+
+    if category_query.top_n:
+      # use aggregation to get top 'top_n' categories
+      return await self.__search_aggregate_categories(category_query.top_n)
+    
+    # use normal search
+    return await self.__search_categories()
+  
+  async def __search_aggregate_categories(self, top_n: int) -> CategoryResults:
     result = await self.es.search(
-      index=self.article_index,
-      aggs=self.__build_categories_aggregation(category_query.size),
+      index=self.articles_index,
+      aggs=self.__build_categories_aggregation(top_n),
       size=0, # don't return any articles, only the categories
     )
 
     buckets = result['aggregations']['categories']['buckets']
 
     res = CategoryResults(
-      total=category_query.size,
+      total=top_n,
       results=[CategoryResult(
         name=b['key'],
         article_count=b['doc_count'],
@@ -618,8 +727,39 @@ class ElasticsearchRepository(Repository):
     return {
       "categories": {
         "terms": {
-          "field": "article.categories.keyword",
+          "field": "article.categories.names.keyword",
           "size": size,
         }
       }
+    }
+  
+  def __build_category_name_query(self, name: str) -> dict:
+    return {
+      "match": {
+        "name": name
+      }
+    }
+  
+  
+  async def __search_categories(self) -> CategoryResults:
+    result = await self.es.search(
+      index=self.categories_index,
+      query={
+        "match_all": {}
+      },
+    )
+
+    res = CategoryResults(
+      total=result['hits']['total']['value'],
+      results=[CategoryResult(
+        id=doc['_id'],
+        name=doc['_source']['name'],
+      ) for doc in result['hits']['hits']],
+    )
+    return res
+    
+  
+  def __build_match_all_query(self) -> dict:
+    return {
+      "match_all": {}
     }

@@ -1,4 +1,5 @@
-from pydantic import BaseModel, conint, model_validator, field_validator
+from pydantic import BaseModel, model_validator, field_validator, Field
+from typing import Annotated
 from datetime import datetime
 from dto.utils import flatten_model_attributes
 from dto.topic_result import TopicResult
@@ -15,12 +16,12 @@ class TopicQuery(BaseModel):
   count_min: int | None = None
   count_max: int | None = None
 
-  date_min: datetime | None = None
-  date_max: datetime | None = None
+  date_min: datetime | None = datetime.fromisoformat('1000-01-01T00:00:00')
+  date_max: datetime | None = datetime.now()
 
   # pagination
-  page: conint(ge=0) # type: ignore = 0
-  page_size: conint(ge=1, le=30) = 10 # type: ignore
+  page: Annotated[int, Field(ge=0)] = 0
+  page_size: Annotated[int, Field(ge=1, le=30)] = 10
 
   # return only a subset of a TopicResult
   # None means return all attributes
@@ -40,29 +41,29 @@ class TopicQuery(BaseModel):
     # all keys are valid, return them
     return v
 
-  @model_validator(mode='after')
-  def some_query_must_be_present(self):
+  # @model_validator(mode='after')
+  # def some_query_must_be_present(self):
     
-    values = [
-      self.id,
-      self.topic,
-      self.count_min,
-      self.count_max,
-      self.date_min,
-      self.date_max,
-    ]
-    for v in values:
-      if v is not None and str(v).strip() != "":
-        return self
+  #   values = [
+  #     self.id,
+  #     self.topic,
+  #     self.count_min,
+  #     self.count_max,
+  #     self.date_min,
+  #     self.date_max,
+  #   ]
+  #   for v in values:
+  #     if v is not None and str(v).strip() != "":
+  #       return self
     
-    keys = [
-      "id",
-      "topic",
-      "count_min",
-      "count_max",
-      "date_min",
-      "date_max",
-    ]
+  #   keys = [
+  #     "id",
+  #     "topic",
+  #     "count_min",
+  #     "count_max",
+  #     "date_min",
+  #     "date_max",
+  #   ]
     
-    raise ValueError(f"At least one of {keys} must be specified.")
+  #   raise ValueError(f"At least one of {keys} must be specified.")
     

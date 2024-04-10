@@ -26,9 +26,11 @@ class Repository(ABC):
   
   @abstractmethod
   async def search_topics(self, topic_query: TopicQuery) -> TopicList:
+    """Search and filter for topics."""
     raise NotImplementedError
   
   # TODO: this returns a DTO, not a domain model 
   @abstractmethod
-  async def get_categories(self, category_query: CategoryQuery) -> CategoryResults:
+  async def search_categories(self, category_query: CategoryQuery) -> CategoryResults:
+    """Get the categories that match the query."""
     raise NotImplementedError

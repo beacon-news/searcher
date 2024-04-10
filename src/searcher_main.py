@@ -8,7 +8,6 @@ from dto.article_query import *
 from dto.article_result import *
 from dto.topic_query import *
 from dto.topic_result import *
-from dto.feed_query import *
 from dto.category_result import *
 from dto.category_query import *
 from domain.article import *
@@ -54,7 +53,7 @@ def map_to_article_results(article_list: ArticleList) -> ArticleResults:
     total=article_list.total_count,
     results=[ArticleResult(
       id=art.id,
-      categories=art.categories,
+      categories=[art.model_dump() for art in art.categories] if art.categories is not None else None, 
       entities=art.entities,
       topics=[t.model_dump() for t in art.topics] if art.topics is not None else None, 
       url=art.url,
@@ -112,29 +111,9 @@ async def search_topics(topic_query: TopicQuery) -> TopicResults:
     return results
 
 
-# @app.get("/feed", response_model=ArticleResults, response_model_exclude_none=True)
-# async def get_feed(
-#   page: int = 0,
-#   page_size: int = 30, 
-#   return_attributes: t.Annotated[list[str] | None, Query()] = None,
-# ) -> ArticleResults:
-
-#   print(return_attributes)
-
-#   article_query = ArticleQuery(
-#     page=page,
-#     page_size=page_size,
-#     return_attributes=return_attributes,
-#   )
-
-#   article_list = await repo.search_articles_text(article_query)
-#   results = map_to_article_results(article_list)
-#   return results
-  
-
 @app.get("/categories", response_model=CategoryResults, response_model_exclude_none=True)
 async def get_categories(size: int = 10) -> CategoryResults:
 
-  category_query = CategoryQuery(size=size)
-  category_results = await repo.get_categories(category_query)  
+  category_query = CategoryQuery(top_n=size)
+  category_results = await repo.search_categories(category_query)  
   return category_results
