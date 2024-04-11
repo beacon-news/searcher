@@ -19,7 +19,7 @@ class ArticleQueryType(str, Enum):
 
 
 class ArticleQuery(BaseModel):
-  id: str | None = None
+  ids: list[str] | None = None
 
   # for title and paragraph
   query: str | None = None

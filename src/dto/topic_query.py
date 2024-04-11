@@ -8,7 +8,7 @@ topic_search_keys = set()
 flatten_model_attributes(TopicResult, topic_search_keys)
 
 class TopicQuery(BaseModel):
-  id: str | None = None
+  ids: list[str] | None = None
 
   # for title and paragraph
   topic: str | None = None

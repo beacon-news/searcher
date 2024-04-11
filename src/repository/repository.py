@@ -3,7 +3,7 @@ from dto.article_query import ArticleQuery
 from dto.topic_query import TopicQuery
 from domain.article import ArticleList
 from domain.topic import TopicList
-from dto.category_result import CategoryResults
+from domain.category import CategoryList
 from dto.category_query import CategoryQuery
 
 
@@ -29,8 +29,7 @@ class Repository(ABC):
     """Search and filter for topics."""
     raise NotImplementedError
   
-  # TODO: this returns a DTO, not a domain model 
   @abstractmethod
-  async def search_categories(self, category_query: CategoryQuery) -> CategoryResults:
+  async def search_categories(self, category_query: CategoryQuery) -> CategoryList:
     """Get the categories that match the query."""
     raise NotImplementedError

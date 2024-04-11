@@ -4,11 +4,11 @@ import asyncio
 from elasticsearch import exceptions, AsyncElasticsearch
 from dto.article_query import ArticleQuery
 from dto.topic_query import TopicQuery
-from dto.category_result import *
 from dto.category_query import *
 from repository.repository import Repository
 from domain.article import *
 from domain.topic import *
+from domain.category import *
 
 KNN_NUM_CANDIDATES = 50
 KNN_K = 10
@@ -332,14 +332,14 @@ class ElasticsearchRepository(Repository):
     )
     filters = [date_query]
     
-    if search_options.id:
-      filters.append(self.__build_id_query(search_options.id)) 
+    if search_options.ids:
+      filters.append(self.__build_ids_query(search_options.ids)) 
     
     if search_options.category_ids:
-      must_queries.append(self.__build_article_category_id_query(search_options.category_ids))
+      must_queries.append(self.__build_article_category_ids_query(search_options.category_ids))
 
     if search_options.topic_ids:
-      filters.append(self.__build_article_topic_id_query(search_options.topic_ids)) 
+      filters.append(self.__build_article_topic_ids_query(search_options.topic_ids)) 
     
     return {
       "bool": {
@@ -359,8 +359,8 @@ class ElasticsearchRepository(Repository):
       start=search_options.date_min,
       end=search_options.date_max
     )]
-    if search_options.id is not None:
-      filters.append(self.__build_id_query(search_options.id))
+    if search_options.ids is not None:
+      filters.append(self.__build_ids_query(search_options.ids))
     
     if search_options.source:
       filters.append(self.__build_article_source_query(search_options.source))
@@ -372,13 +372,13 @@ class ElasticsearchRepository(Repository):
       filters.append(self.__build_article_category_query(search_options.categories))
 
     if search_options.category_ids:
-      filters.append(self.__build_article_category_id_query(search_options.category_ids))
+      filters.append(self.__build_article_category_ids_query(search_options.category_ids))
     
     if search_options.topic:
       filters.append(self.__build_article_topic_query(search_options.topic))
 
     if search_options.topic_ids:
-      filters.append(self.__build_article_topic_id_query(search_options.topic_ids))
+      filters.append(self.__build_article_topic_ids_query(search_options.topic_ids))
     
 
     return {
@@ -396,7 +396,7 @@ class ElasticsearchRepository(Repository):
       }
     }
 
-  def __build_article_category_id_query(self, ids: list[str]) -> dict:
+  def __build_article_category_ids_query(self, ids: list[str]) -> dict:
     return {
       "match": {
         "article.categories.ids": ids
@@ -417,7 +417,7 @@ class ElasticsearchRepository(Repository):
       }
     }
   
-  def __build_article_topic_id_query(self, ids: list[str]) -> dict:
+  def __build_article_topic_ids_query(self, ids: list[str]) -> dict:
     return {
       "terms": {
         "topics.topic_ids": ids
@@ -441,10 +441,10 @@ class ElasticsearchRepository(Repository):
       }
     }
   
-  def __build_id_query(self, id: str) -> dict:
+  def __build_ids_query(self, ids: list[str]) -> dict:
     return {
-      "term": {
-        "_id": id
+      "terms": {
+        "_id": ids
       }
     }
 
@@ -564,8 +564,8 @@ class ElasticsearchRepository(Repository):
   
   def __build_topic_query(self, topic_query: TopicQuery) -> dict:
     filters = []
-    if topic_query.id is not None:
-      filters.append(self.__build_id_query(topic_query.id))
+    if topic_query.ids is not None:
+      filters.append(self.__build_ids_query(topic_query.ids))
     
     count_min = topic_query.count_min
     count_max = topic_query.count_max
@@ -611,7 +611,7 @@ class ElasticsearchRepository(Repository):
   def __map_to_topics(self, doc_hits: list[dict]) -> TopicList:
     # convert to domain model
 
-    topics: list[Article] = []
+    topics: list[Topic] = []
     total_count = doc_hits['total']['value']
 
     for doc in doc_hits['hits']:
@@ -653,85 +653,91 @@ class ElasticsearchRepository(Repository):
     return res
 
 
-  async def search_categories(self, category_query: CategoryQuery) -> CategoryResults:
-    # filter_queries = []
-    # if category_query.ids is not None: 
-    #   if category_query.top_n:
-    #     filter_queries.append(self.__build_article_category_id_query(category_query.ids))
-    #   else:
-    #     for id in category_query.ids:
-    #       filter_queries.append(self.__build_id_query(id))
-    
-    # must_queries = []
-    # if category_query.names is not None:
-    #   if category_query.top_n:
-    #     must_queries.append(self.__build_article_category_query(" ".join(category_query.names)))
-    #   else:
-    #     for name in category_query.names:
-    #       must_queries.append(self.__build_category_name_query(name))
-
-    # query = {
-    #   "bool": {
-    #     "must": must_queries,
-    #     "filter": filter_queries,
-    #   }
-    # }
-
-    # must_queries = []
-    # should_queries = []
-    # if category_query.top_n:
-    #   if category_query.names:
-    #     must_queries.append(self.__build_article_category_query(" ".join(category_query.names)))
-    
-    # else:
-    #   if category_query.names:
-    #     for name in category_query.names:
-    #       should_queries.append(self.__build_category_name_query(name))
-    
-    
-    # query = {
-    #   "bool": {
-    #     "must": must_queries,
-    #     "filter": filter_queries,
-    #     "should": should_queries,
-    #   }
-    # }
-
-    if category_query.top_n:
-      # use aggregation to get top 'top_n' categories
-      return await self.__search_aggregate_categories(category_query.top_n)
-    
-    # use normal search
-    return await self.__search_categories()
-  
-  async def __search_aggregate_categories(self, top_n: int) -> CategoryResults:
-    result = await self.es.search(
-      index=self.articles_index,
-      aggs=self.__build_categories_aggregation(top_n),
-      size=0, # don't return any articles, only the categories
+  async def search_categories(self, category_query: CategoryQuery) -> CategoryList:
+    query = self.__build_categories_query(category_query)
+    docs = await self.es.search(
+      index=self.categories_index,
+      query=query,
+      from_=category_query.page * category_query.page_size,
+      size=category_query.page_size,
     )
+    return self.__map_to_categories(docs['hits'])
 
-    buckets = result['aggregations']['categories']['buckets']
+  def __build_categories_query(self, category_query: CategoryQuery) -> dict:
+    filter_queries = []
+    if category_query.ids is not None: 
+      filter_queries.append(self.__build_ids_query(category_query.ids))
+    
+    should_queries = []
+    if category_query.query is not None:
+      should_queries.append(self.__build_category_name_query(category_query.query))
 
-    res = CategoryResults(
-      total=top_n,
-      results=[CategoryResult(
-        name=b['key'],
-        article_count=b['doc_count'],
-      ) for b in buckets],
-    ) 
-    return res
-
-  def __build_categories_aggregation(self, size: int) -> dict:
-    # only get up to the top 'size' categories
     return {
-      "categories": {
-        "terms": {
-          "field": "article.categories.names.keyword",
-          "size": size,
-        }
+      "bool": {
+        "should": should_queries,
+        "minimum_should_match": 1 if len(should_queries) > 0 else 0,
+        "filter": filter_queries,
       }
     }
+
+  def __map_to_categories(self, doc_hits: list[dict]) -> CategoryList:
+    categories: list[Category] = []
+    total_count = doc_hits['total']['value']
+
+    for doc in doc_hits['hits']:
+      source = doc['_source']
+
+      # the '_id' field should always be present
+      id = doc.get('_id', None)
+      if id is None:
+        raise ValueError(f"no '_id' field found in doc: {doc}")
+
+      # the 'name' field should always be present
+      name = source.get('name', None)
+      if name is None:
+        raise ValueError(f"no 'name' field found in source of doc: {doc}")
+
+      categories.append(Category(
+        id=id, 
+        name=name
+      ))
+
+    res = CategoryList(
+      total_count=total_count,
+      categories=categories
+    )
+    return res
+    
+
+  
+  # async def __search_aggregate_categories(self, top_n: int) -> CategoryResults:
+  #   result = await self.es.search(
+  #     index=self.articles_index,
+  #     aggs=self.__build_categories_aggregation(top_n),
+  #     size=0, # don't return any articles, only the categories
+  #   )
+
+  #   buckets = result['aggregations']['categories']['buckets']
+
+  #   res = CategoryResults(
+  #     total=top_n,
+  #     results=[CategoryResult(
+  #       name=b['key'],
+  #       article_count=b['doc_count'],
+  #     ) for b in buckets],
+  #   ) 
+  #   return res
+
+  # def __build_categories_aggregation(self, size: int) -> dict:
+  #   # only get up to the top 'size' categories
+  #   return {
+  #     "categories": {
+  #       "terms": {
+  #         "field": "article.categories.names.keyword",
+  #         "size": size,
+  #       }
+  #     }
+  #   }
   
   def __build_category_name_query(self, name: str) -> dict:
     return {
@@ -741,25 +747,25 @@ class ElasticsearchRepository(Repository):
     }
   
   
-  async def __search_categories(self) -> CategoryResults:
-    result = await self.es.search(
-      index=self.categories_index,
-      query={
-        "match_all": {}
-      },
-    )
+  # async def __search_categories(self) -> CategoryResults:
+  #   result = await self.es.search(
+  #     index=self.categories_index,
+  #     query={
+  #       "match_all": {}
+  #     },
+  #   )
 
-    res = CategoryResults(
-      total=result['hits']['total']['value'],
-      results=[CategoryResult(
-        id=doc['_id'],
-        name=doc['_source']['name'],
-      ) for doc in result['hits']['hits']],
-    )
-    return res
+  #   res = CategoryResults(
+  #     total=result['hits']['total']['value'],
+  #     results=[CategoryResult(
+  #       id=doc['_id'],
+  #       name=doc['_source']['name'],
+  #     ) for doc in result['hits']['hits']],
+  #   )
+  #   return res
     
   
-  def __build_match_all_query(self) -> dict:
-    return {
-      "match_all": {}
-    }
+  # def __build_match_all_query(self) -> dict:
+  #   return {
+  #     "match_all": {}
+  #   }

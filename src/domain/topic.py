@@ -33,4 +33,4 @@ class Topic(pydantic.BaseModel):
 
 class TopicList(pydantic.BaseModel):
   total_count: int
-  results: list[Topic]
+  topics: list[Topic]
