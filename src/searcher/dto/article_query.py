@@ -2,8 +2,8 @@ from pydantic import BaseModel, model_validator, field_validator, Field
 from typing import Annotated
 from datetime import datetime
 from enum import Enum
-from dto.article_result import ArticleResult
-from dto.utils import flatten_model_attributes
+from .article_result import ArticleResult
+from .utils import flatten_model_attributes
 
   
 # find out the flattened keys of ArticleResult

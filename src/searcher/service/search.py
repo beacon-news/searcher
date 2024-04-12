@@ -1,15 +1,15 @@
-from dto.article_query import *
-from dto.article_result import *
-from dto.topic_query import *
-from dto.topic_result import *
-from dto.category_query import *
-from dto.category_result import *
-from domain.article import *
-from domain.category import *
-from domain.topic import *
-from repository import Repository
-from embeddings import EmbeddingsModel
-from utils import log_utils
+from ..dto.article_query import *
+from ..dto.article_result import *
+from ..dto.topic_query import *
+from ..dto.topic_result import *
+from ..dto.category_query import *
+from ..dto.category_result import *
+from ..domain.article import *
+from ..domain.category import *
+from ..domain.topic import *
+from ..repository import Repository
+from ..embeddings import EmbeddingsModel
+from ..utils import log_utils
 import logging
 
 

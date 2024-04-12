@@ -3,7 +3,7 @@ import redis.exceptions
 import uuid
 import time
 from random import randint
-from utils import log_utils
+from ..utils import log_utils
 import threading
 
 

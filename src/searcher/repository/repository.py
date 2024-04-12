@@ -1,10 +1,10 @@
 from abc import ABC, abstractmethod
-from dto.article_query import ArticleQuery
-from dto.topic_query import TopicQuery
-from domain.article import ArticleList
-from domain.topic import TopicList
-from domain.category import CategoryList
-from dto.category_query import CategoryQuery
+from ..dto.article_query import ArticleQuery
+from ..dto.topic_query import TopicQuery
+from ..domain.article import ArticleList
+from ..domain.topic import TopicList
+from ..domain.category import CategoryList
+from ..dto.category_query import CategoryQuery
 
 
 class Repository(ABC):

@@ -1,6 +1,6 @@
 import pydantic
 from datetime import datetime
-from domain.category import Category
+from .category import Category
 
 
 class ArticleTopic(pydantic.BaseModel):

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from ingester.redis_handler import RedisHandler
+from .redis_handler import RedisHandler
 from typing import Callable
 import json
 

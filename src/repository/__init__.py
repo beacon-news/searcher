@@ -1,2 +1,0 @@
-from repository.repository import Repository
-from repository.elasticsearch_repository import ElasticsearchRepository

@@ -1,4 +1,4 @@
-from embeddings.embeddings_container import EmbeddingsModelContainer
+from .embeddings_container import EmbeddingsModelContainer
 import numpy as np
 
 

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from ingester.mongodb_repository import MongoRepository
+from .mongodb_repository import MongoRepository
 
 
 class AnalyzerRepository(ABC):

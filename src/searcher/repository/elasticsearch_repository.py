@@ -1,14 +1,14 @@
-from utils import log_utils
+from ..utils import log_utils
 import logging
 import asyncio
 from elasticsearch import exceptions, AsyncElasticsearch
-from dto.article_query import ArticleQuery
-from dto.topic_query import TopicQuery
-from dto.category_query import *
-from repository.repository import Repository
-from domain.article import *
-from domain.topic import *
-from domain.category import *
+from ..dto.article_query import ArticleQuery
+from ..dto.topic_query import TopicQuery
+from ..dto.category_query import *
+from .repository import Repository
+from ..domain.article import *
+from ..domain.topic import *
+from ..domain.category import *
 
 KNN_NUM_CANDIDATES = 50
 KNN_K = 10

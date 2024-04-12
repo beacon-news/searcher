@@ -1,2 +1,0 @@
-from embeddings.embeddings_container import EmbeddingsModelContainer
-from embeddings.embeddings_model import EmbeddingsModel

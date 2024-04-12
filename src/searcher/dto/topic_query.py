@@ -1,8 +1,8 @@
 from pydantic import BaseModel, model_validator, field_validator, Field
 from typing import Annotated
 from datetime import datetime
-from dto.utils import flatten_model_attributes
-from dto.topic_result import TopicResult
+from .utils import flatten_model_attributes
+from .topic_result import TopicResult
 
 topic_search_keys = set() 
 flatten_model_attributes(TopicResult, topic_search_keys)

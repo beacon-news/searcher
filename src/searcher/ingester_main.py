@@ -1,9 +1,9 @@
 import os
 import asyncio
-from ingester.notification_consumer import *
-from ingester.analyzer_repository import *
-from searcher.src.repository.elasticsearch_repository import *
-from utils import log_utils
+from .ingester.notification_consumer import *
+from .ingester.analyzer_repository import *
+from .repository.elasticsearch_repository import *
+from .utils import log_utils
 from dotenv import load_dotenv
 
 load_dotenv()
