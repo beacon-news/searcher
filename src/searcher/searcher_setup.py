@@ -21,7 +21,12 @@ ELASTIC_USER = check_env('ELASTIC_USER', 'elastic')
 ELASTIC_PASSWORD = check_env('ELASTIC_PASSWORD')
 ELASTIC_CONN = check_env('ELASTIC_HOST', 'https://localhost:9200')
 ELASTIC_CA_PATH = check_env('ELASTIC_CA_PATH', '../../certs/_data/ca/ca.crt')
-ELASTIC_TLS_INSECURE = bool(check_env('ELASTIC_TLS_INSECURE', False))
+ELASTIC_TLS_INSECURE = bool(check_env('ELASTIC_TLS_INSECURE', 'false') == 'true')
+
+CORS_ALLOWED_ORIGINS = check_env('CORS_ALLOWED_ORIGINS', 'http://localhost').split(' ')
+CORS_ALLOWED_METHODS = check_env('CORS_ALLOWED_METHODS', '*').split(' ')
+CORS_ALLOWED_HEADERS = check_env('CORS_ALLOWED_HEADERS', '*').split(' ')
+CORS_ALLOW_CREDENTIALS = bool(check_env('CORS_ALLOW_CREDENTIALS', 'true') == 'true')
 
 embeddings_model = EmbeddingsModel(EmbeddingsModelContainer.load(EMBEDDINGS_MODEL_PATH))
 
