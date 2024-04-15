@@ -2,8 +2,8 @@ from pydantic import BaseModel, Field, field_validator
 from typing import Annotated
 
 class CategoryQuery(BaseModel):
-  ids: list[str] | None  = None
-  query: str | None = None
+  ids: Annotated[list[str] | None, Field()] = None
+  query: Annotated[str | None, Field()] = None
 
   # pagination
   page: Annotated[int, Field(ge=0)] = 0
@@ -14,11 +14,8 @@ class CategoryQuery(BaseModel):
   def list_not_blank(cls, v: list[str] | None) -> str | None:
     if v is not None:
       new_items = [value for value in v if len(value) > 0 and not value.isspace()]
-      if len(new_items) == 0:
-        raise ValueError("list only contains empty values")
-      if len(new_items) > 20: 
+      if len(new_items) > 100: 
         raise ValueError("list contains too many items")
 
       return new_items
-
     return v

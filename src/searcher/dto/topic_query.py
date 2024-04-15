@@ -1,31 +1,44 @@
 from pydantic import BaseModel, model_validator, field_validator, Field
+from fastapi import Query
+
 from typing import Annotated
 from datetime import datetime
 from .utils import flatten_model_attributes
 from .topic_result import TopicResult
+from .sort_direction import SortDirection
+import typing as t
 
 topic_search_keys = set() 
 flatten_model_attributes(TopicResult, topic_search_keys)
 
 class TopicQuery(BaseModel):
-  ids: list[str] | None = None
+  ids: Annotated[list[str] | None, Field()] = None
 
-  # for title and paragraph
-  topic: str | None = None
+  topic: Annotated[str | None, Field()] = None
 
-  count_min: int | None = None
-  count_max: int | None = None
+  count_min: Annotated[int | None, Field()] = None
+  count_max: Annotated[int | None, Field()] = None
 
-  date_min: datetime | None = datetime.fromisoformat('1000-01-01T00:00:00')
-  date_max: datetime | None = datetime.now()
-
+  # ISO8601 date format
+  date_min: Annotated[datetime | None, Field()] = datetime.fromisoformat('1000-01-01T00:00:00')
+  date_max: Annotated[datetime | None, Field()] = datetime.now()
+  
   # pagination
   page: Annotated[int, Field(ge=0)] = 0
+
+  # only applicable to text search, semantic search will always limit the returned results
   page_size: Annotated[int, Field(ge=1, le=30)] = 10
 
-  # return only a subset of a TopicResult
+  # TODO:
+  # sorting
+  sort_field: Annotated[str | None, Field()] = None
+  sort_dir: Annotated[SortDirection | None, Field()] = None
+
+  # return only a subset of an ArticleResult
   # None means return all attributes
-  return_attributes: list[str] | None = None
+  return_attributes: Annotated[t.List[str] | None, Field()] = None
+
+  # TODO: sorting
 
 
   @field_validator("return_attributes")

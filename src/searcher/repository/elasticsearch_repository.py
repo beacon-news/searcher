@@ -42,14 +42,6 @@ class ElasticsearchRepository(Repository):
     "paragraphs": "article.paragraphs",
   }
 
-  topic_search_keys_to_repo_model = {
-    "id": "id_is_always_returned", # causes nothing to be returned for the 'id', but the source's '_id' is used which is always returned
-    "query": "query",
-    "topic": "topic",
-    "count": "count",
-    "representative_articles": "representative_articles",
-  }
-
   article_sort_options = {
     "track_scores": True,
     "sort": [
@@ -58,12 +50,15 @@ class ElasticsearchRepository(Repository):
           "order": "desc"
         }
       },
-      {
-        "article.publish_date": {
-          "order": "desc"
-        }
-      }
     ]
+  }
+
+  topic_search_keys_to_repo_model = {
+    "id": "id_is_always_returned", # causes nothing to be returned for the 'id', but the source's '_id' is used which is always returned
+    "query": "query",
+    "topic": "topic",
+    "count": "count",
+    "representative_articles": "representative_articles",
   }
 
   topic_sort_options = {
@@ -256,13 +251,14 @@ class ElasticsearchRepository(Repository):
   
   async def __search_articles_text(self, search_options: ArticleQuery) -> dict:
     text_query = self.__build_article_text_query(search_options)
+    sort_options = self.__build_article_sort_options(search_options)
     return await self.es.search(
       index=self.articles_index, 
       query=text_query,
       from_=search_options.page * search_options.page_size,
       size=search_options.page_size,
-      sort=self.article_sort_options["sort"],
-      track_scores=self.article_sort_options["track_scores"],
+      sort=sort_options["sort"],
+      track_scores=sort_options["track_scores"],
       source_excludes=["analyzer.embeddings"],
       source_includes=self.__map_search_keys(
         keys=search_options.return_attributes, 
@@ -276,11 +272,12 @@ class ElasticsearchRepository(Repository):
   
   async def __search_articles_embeddings(self, search_options: ArticleQuery, embeddings: list) -> dict:
     knn_query = self.__build_article_knn_query(search_options, embeddings)
+    sort_options = self.__build_article_sort_options(search_options)
     return await self.es.search(
       index=self.articles_index, 
       knn=knn_query, 
-      sort=self.article_sort_options["sort"],
-      track_scores=self.article_sort_options["track_scores"],
+      sort=sort_options["sort"],
+      track_scores=sort_options["track_scores"],
       source_excludes=["analyzer.embeddings"],
       source_includes=self.__map_search_keys(
         keys=search_options.return_attributes, 
@@ -332,7 +329,7 @@ class ElasticsearchRepository(Repository):
     )
     filters = [date_query]
     
-    if search_options.ids:
+    if search_options.ids and len(search_options.ids) > 0:
       filters.append(self.__build_ids_query(search_options.ids)) 
     
     if search_options.category_ids:
@@ -359,7 +356,7 @@ class ElasticsearchRepository(Repository):
       start=search_options.date_min,
       end=search_options.date_max
     )]
-    if search_options.ids is not None:
+    if search_options.ids and len(search_options.ids) > 0:
       filters.append(self.__build_ids_query(search_options.ids))
     
     if search_options.source:
@@ -447,6 +444,34 @@ class ElasticsearchRepository(Repository):
         "_id": ids
       }
     }
+  
+  def __build_article_sort_options(self, article_query: ArticleQuery) -> dict:
+    # global sort options
+    sort_options = {
+      "track_scores": True,
+      "sort": [
+        {
+          "_score": {
+            "order": "desc"
+          }
+        }
+      ],
+    }
+
+    # default sort 
+    option = {
+      "article.publish_date": {
+        "order": "desc"
+      }
+    }
+    if article_query.sort_field is not None and article_query.sort_dir is not None:
+      option = {
+        self.__map_search_keys([article_query.sort_field], self.article_search_keys_to_repo_model)[0]: {
+          "order": article_query.sort_dir.value,
+        }
+      }
+    sort_options["sort"].append(option)
+    return sort_options
 
   def __re_rank_rrf(self, res1, res2) -> dict: 
       k = 60
@@ -564,7 +589,7 @@ class ElasticsearchRepository(Repository):
   
   def __build_topic_query(self, topic_query: TopicQuery) -> dict:
     filters = []
-    if topic_query.ids is not None:
+    if topic_query.ids and len(topic_query.ids) > 0:
       filters.append(self.__build_ids_query(topic_query.ids))
     
     count_min = topic_query.count_min
@@ -607,6 +632,35 @@ class ElasticsearchRepository(Repository):
         "filter": filters,
       }
     }
+
+  # TODO:
+  # def __build_topic_sort_options(self, topic_query: TopicQuery) -> dict:
+  #   # global sort options
+  #   sort_options = {
+  #     "track_scores": True,
+  #     "sort": [
+  #       {
+  #         "_score": {
+  #           "order": "desc"
+  #         }
+  #       }
+  #     ],
+  #   }
+
+  #   # default sort 
+  #   option = {
+  #     "query.publish_date.end": {
+  #       "order": "desc"
+  #     }
+  #   }
+  #   if topic_query.sort_field is not None and topic_query.sort_dir is not None:
+  #     option = {
+  #       self.__map_search_keys([topic_query.sort_field], self.topic_search_keys_to_repo_model)[0]: {
+  #         "order": topic_query.sort_dir.value,
+  #       }
+  #     }
+  #   sort_options["sort"].append(option)
+  #   return sort_options
   
   def __map_to_topics(self, doc_hits: list[dict]) -> TopicList:
     # convert to domain model
@@ -665,7 +719,7 @@ class ElasticsearchRepository(Repository):
 
   def __build_categories_query(self, category_query: CategoryQuery) -> dict:
     filter_queries = []
-    if category_query.ids is not None: 
+    if category_query.ids is not None and len(category_query.ids) > 0: 
       filter_queries.append(self.__build_ids_query(category_query.ids))
     
     should_queries = []

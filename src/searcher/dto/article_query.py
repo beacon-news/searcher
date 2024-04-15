@@ -3,12 +3,20 @@ from typing import Annotated
 from datetime import datetime
 from enum import Enum
 from .article_result import ArticleResult
+from .sort_direction import SortDirection
 from .utils import flatten_model_attributes
 
   
 # find out the flattened keys of ArticleResult
 article_search_keys = set()
 flatten_model_attributes(ArticleResult, article_search_keys)
+
+# keys of ArticleResult that make sense to sort by
+article_sort_keys = set([
+  "publish_date",
+  "title",
+  "paragraphs",
+])
 
 
 # model classes
@@ -44,6 +52,10 @@ class ArticleQuery(BaseModel):
   # only applicable to text search, semantic search will always limit the returned results
   page_size: Annotated[int, Field(ge=1, le=30)] = 10
 
+  # sorting
+  sort_field: str | None = None
+  sort_dir: SortDirection | None = None
+
   search_type: ArticleQueryType = ArticleQueryType.text
 
   # return only a subset of an ArticleResult
@@ -63,6 +75,28 @@ class ArticleQuery(BaseModel):
 
     # all keys are valid, return them
     return v
+
+  @field_validator("sort_field")
+  @classmethod
+  def is_sortable_key(cls, v: str | None) -> str | None:
+    if v is None:
+      return None
+
+    if v not in article_sort_keys:
+      raise ValueError(f"Invalid sort field '{v}'. Must be one of {article_sort_keys}.")
+
+    return v
+  
+  # @model_validator(mode='after')
+  # def sorting_valid(self):
+  #   if self.sort_field is None:
+  #     if self.sort_dir is not None:
+  #       raise ValueError("sort_field must be specified if sort_dir is specified.")
+  #   else:
+  #     if self.sort_dir is None:
+  #       self.sort_dir = SortDirection.desc
+
+  #   return self
 
 
   # if nothing is present, simply returns the most recent articles...

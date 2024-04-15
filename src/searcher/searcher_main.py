@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .api import search
+from .api import exception_handlers
 from .searcher_setup import CORS_ALLOWED_HEADERS, CORS_ALLOWED_METHODS, CORS_ALLOWED_ORIGINS, CORS_ALLOW_CREDENTIALS
 
 
@@ -14,6 +15,9 @@ tags_metadata = [
 app = FastAPI(
   tags_metadata=tags_metadata,
 )
+
+for h in exception_handlers.handlers:
+  app.add_exception_handler(*h)
 
 app.add_middleware(
   CORSMiddleware,
