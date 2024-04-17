@@ -42,17 +42,6 @@ class ElasticsearchRepository(Repository):
     "paragraphs": "article.paragraphs",
   }
 
-  article_sort_options = {
-    "track_scores": True,
-    "sort": [
-      {
-        "_score": {
-          "order": "desc"
-        }
-      },
-    ]
-  }
-
   topic_search_keys_to_repo_model = {
     "id": "id_is_always_returned", # causes nothing to be returned for the 'id', but the source's '_id' is used which is always returned
     "query": "query",
