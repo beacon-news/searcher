@@ -209,6 +209,17 @@ class ElasticsearchRepository(Repository):
 
   # TODO: add topic index assertion
   
+  # TODO: in case of combined search, pagination doesn't really work as expected.
+  # Pagination only applies to the text query,
+  # the KNN query always returns the first 'K' most relevant results.
+  # This leads to the KNN results being duplicated in the results, if we're looking
+  # at the results across pages.
+  # e.g. page 0, page size 12, KNN 10: 10 KNN results, 12 text results combined into first 12 results
+  # page 1, page size 12, KNN 10: 10 KNN results, 12 NEXT text results combined into first 12 results
+  # --> this can end in duplicating the KNN results
+
+  # solution: disable pages, only consider the page size ?
+
   async def search_articles_combined(self, search_options: ArticleQuery, embeddings: list) -> ArticleList:
     res_text = asyncio.Task(self.__search_articles_text(search_options))
     res_em = asyncio.Task(self.__search_articles_embeddings(search_options, embeddings))
@@ -222,17 +233,16 @@ class ElasticsearchRepository(Repository):
       return self.__map_to_articles(res_em['hits'])
     elif res_em_count == 0:
       return self.__map_to_articles(res_text['hits'])
-    
+
     reranked_docs = self.__re_rank_rrf(res_text['hits']['hits'], res_em['hits']['hits'])
-    
     # combine results, swapping parts out so it looks like a single result
     combined = res_text
 
     # precise total count cannot be provided because of overlap between the 2 queries, so the max is returned
     combined['hits']['total']['value'] = max(res_text_count, res_em_count)
-    combined['hits']['hits'] = reranked_docs
+    combined['hits']['hits'] = reranked_docs[:search_options.page_size]
     
-    return self.__map_to_articles(combined)
+    return self.__map_to_articles(combined['hits'])
   
   async def search_articles_text(self, search_options: ArticleQuery) -> ArticleList:
     res = await self.__search_articles_text(search_options)
@@ -495,13 +505,13 @@ class ElasticsearchRepository(Repository):
         mapped.append(mapping[k])
       elif type(mapping[k]) == list:
         mapped.extend(mapping[k])
-    print(mapped)
     return mapped
 
   def __map_to_articles(self, doc_hits: dict) -> ArticleList:
     # map from repo model to domain model
 
     articles: list[Article] = []
+
     total_count = doc_hits['total']['value']
 
     for doc in doc_hits["hits"]:
