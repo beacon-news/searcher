@@ -11,6 +11,11 @@ import typing as t
 topic_search_keys = set() 
 flatten_model_attributes(TopicResult, topic_search_keys)
 
+topic_sort_keys = set([
+  "query.publish_date.start",
+  "query.publish_date.end",
+])
+
 class TopicQuery(BaseModel):
   ids: Annotated[list[str] | None, Field()] = None
 
@@ -29,7 +34,6 @@ class TopicQuery(BaseModel):
   # only applicable to text search, semantic search will always limit the returned results
   page_size: Annotated[int, Field(ge=1, le=30)] = 10
 
-  # TODO:
   # sorting
   sort_field: Annotated[str | None, Field()] = None
   sort_dir: Annotated[SortDirection | None, Field()] = None
@@ -37,8 +41,6 @@ class TopicQuery(BaseModel):
   # return only a subset of an ArticleResult
   # None means return all attributes
   return_attributes: Annotated[t.List[str] | None, Field()] = None
-
-  # TODO: sorting
 
 
   @field_validator("return_attributes")
@@ -52,6 +54,17 @@ class TopicQuery(BaseModel):
         raise ValueError(f"Invalid return attribute '{key}'. Must be one of {topic_search_keys}.")
 
     # all keys are valid, return them
+    return v
+
+  @field_validator("sort_field")
+  @classmethod
+  def is_sortable_key(cls, v: str | None) -> str | None:
+    if v is None:
+      return None
+
+    if v not in topic_sort_keys:
+      raise ValueError(f"Invalid sort field '{v}'. Must be one of {topic_sort_keys}.")
+
     return v
 
   # @model_validator(mode='after')

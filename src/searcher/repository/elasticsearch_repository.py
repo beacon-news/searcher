@@ -24,7 +24,7 @@ class ElasticsearchRepository(Repository):
       level=level
     )
   
-  # map the returned attributes based on these mappings
+  # maps requested keys to the model's keys, for selecting returned attributes
   article_search_keys_to_repo_model = {
     "id": "id_is_always_returned", # causes nothing to be returned for the 'id', but the source's '_id' is used which is always returned
     "categories": [
@@ -42,6 +42,7 @@ class ElasticsearchRepository(Repository):
     "paragraphs": "article.paragraphs",
   }
 
+  # maps requested keys to the model's keys, for selecting returned attributes
   topic_search_keys_to_repo_model = {
     "id": "id_is_always_returned", # causes nothing to be returned for the 'id', but the source's '_id' is used which is always returned
     "query": "query",
@@ -50,26 +51,13 @@ class ElasticsearchRepository(Repository):
     "representative_articles": "representative_articles",
   }
 
-  topic_sort_options = {
-    "track_scores": True,
-    "sort": [
-      {
-        "count": {
-          "order": "desc"
-        }
-      },
-      {
-        "_score": {
-          "order": "desc"
-        }
-      },
-      {
-        "query.publish_date.end": {
-          "order": "desc"
-        }
-      }
-    ]
+  # maps requested sort keys to the model's keys, for creating the sort query
+  topic_sort_keys_to_repo_model = {
+    "query.publish_date.start": "query.publish_date.start",
+    "query.publish_date.end": "query.publish_date.end",
+    "count": "count",
   }
+
 
   def __init__(
       self, 
@@ -175,16 +163,6 @@ class ElasticsearchRepository(Repository):
                   }
                 }
               },
-              # "categories": {
-              #   "type": "text",
-              #   # keyword mapping needed so we can do aggregations
-              #   "fields": {
-              #     "keyword": {
-              #       "type": "keyword",
-              #       "ignore_above": 256
-              #     }
-              #   }
-              # },
             }
           }
         }
@@ -209,17 +187,18 @@ class ElasticsearchRepository(Repository):
 
   # TODO: add topic index assertion
   
-  # TODO: in case of combined search, pagination doesn't really work as expected.
+  # In the case of combined search, pagination doesn't really work as expected.
   # Pagination only applies to the text query,
   # the KNN query always returns the first 'K' most relevant results.
   # This leads to the KNN results being duplicated in the results, if we're looking
   # at the results across pages.
-  # e.g. page 0, page size 12, KNN 10: 10 KNN results, 12 text results combined into first 12 results
-  # page 1, page size 12, KNN 10: 10 KNN results, 12 NEXT text results combined into first 12 results
-  # --> this can end in duplicating the KNN results
+  # e.g. 
+  # page 0, page size 12, KNN 10: top 10 KNN results, 12 page 0 text results combined into first 12 results
+  # page 1, page size 12, KNN 10: top 10 KNN results, 12 page 1 (NEXT) text results combined into first 12 results
+  # --> this can end in duplicating the KNN results, depending on the order after re-ranking
+  # (which we have no way of knowing ahead of time, only looking at a single request)
 
-  # solution: disable pages, only consider the page size ?
-
+  # for now, this limitation is accepted
   async def search_articles_combined(self, search_options: ArticleQuery, embeddings: list) -> ArticleList:
     res_text = asyncio.Task(self.__search_articles_text(search_options))
     res_em = asyncio.Task(self.__search_articles_embeddings(search_options, embeddings))
@@ -445,19 +424,16 @@ class ElasticsearchRepository(Repository):
     }
   
   def __build_article_sort_options(self, article_query: ArticleQuery) -> dict:
-    # global sort options
-    sort_options = {
-      "track_scores": True,
-      "sort": [
-        {
-          "_score": {
-            "order": "desc"
-          }
-        }
-      ],
+    sort_orders = []
+    
+    # default score sort to add at the end, used if everything before this equal
+    score_sort = {
+      "_score": {
+        "order": "desc"
+      }
     }
 
-    # default sort 
+    # default sort, replaced by the sort in article_query if present
     option = {
       "article.publish_date": {
         "order": "desc"
@@ -469,8 +445,13 @@ class ElasticsearchRepository(Repository):
           "order": article_query.sort_dir.value,
         }
       }
-    sort_options["sort"].append(option)
-    return sort_options
+
+    sort_orders.append(option)
+    sort_orders.append(score_sort) # tiebreaker for equal scores 
+    return {
+      "track_scores": True,
+      "sort": sort_orders,
+    }
 
   def __re_rank_rrf(self, res1, res2) -> dict: 
       k = 60
@@ -572,11 +553,12 @@ class ElasticsearchRepository(Repository):
 
   async def search_topics(self, topic_query: TopicQuery) -> TopicList:
     query = self.__build_topic_query(topic_query)
+    sort_options = self.__build_topic_sort_options(topic_query)
     docs = await self.es.search(
       index=self.topics_index, 
       query=query,
-      sort=self.topic_sort_options["sort"],
-      track_scores=self.topic_sort_options["track_scores"],
+      sort=sort_options["sort"],
+      track_scores=sort_options["track_scores"],
       from_=topic_query.page * topic_query.page_size,
       size=topic_query.page_size,
       source_includes=self.__map_search_keys(
@@ -633,33 +615,42 @@ class ElasticsearchRepository(Repository):
     }
 
   # TODO:
-  # def __build_topic_sort_options(self, topic_query: TopicQuery) -> dict:
-  #   # global sort options
-  #   sort_options = {
-  #     "track_scores": True,
-  #     "sort": [
-  #       {
-  #         "_score": {
-  #           "order": "desc"
-  #         }
-  #       }
-  #     ],
-  #   }
+  def __build_topic_sort_options(self, topic_query: TopicQuery) -> dict:
+    sort_orders = []
+    
+    # default score sort to add at the end, used if everything before this equal
+    score_sort = {
+      "_score": {
+        "order": "desc"
+      }
+    }
 
-  #   # default sort 
-  #   option = {
-  #     "query.publish_date.end": {
-  #       "order": "desc"
-  #     }
-  #   }
-  #   if topic_query.sort_field is not None and topic_query.sort_dir is not None:
-  #     option = {
-  #       self.__map_search_keys([topic_query.sort_field], self.topic_search_keys_to_repo_model)[0]: {
-  #         "order": topic_query.sort_dir.value,
-  #       }
-  #     }
-  #   sort_options["sort"].append(option)
-  #   return sort_options
+    # default sort, replaced by the sort in topic_query if present
+    options = [
+      {
+        "query.publish_date.end": {
+          "order": "desc"
+        }
+      },
+      {
+        "count": {
+          "order": "desc"
+        }
+      },
+    ]
+    if topic_query.sort_field is not None and topic_query.sort_dir is not None:
+      options = [{
+        self.__map_search_keys([topic_query.sort_field], self.topic_sort_keys_to_repo_model)[0]: {
+          "order": topic_query.sort_dir.value,
+        }
+      }]
+
+    sort_orders.extend(options)
+    sort_orders.append(score_sort) # tiebreaker for equal scores 
+    return {
+      "track_scores": True,
+      "sort": sort_orders,
+    }
   
   def __map_to_topics(self, doc_hits: list[dict]) -> TopicList:
     # convert to domain model
@@ -799,26 +790,3 @@ class ElasticsearchRepository(Repository):
       }
     }
   
-  
-  # async def __search_categories(self) -> CategoryResults:
-  #   result = await self.es.search(
-  #     index=self.categories_index,
-  #     query={
-  #       "match_all": {}
-  #     },
-  #   )
-
-  #   res = CategoryResults(
-  #     total=result['hits']['total']['value'],
-  #     results=[CategoryResult(
-  #       id=doc['_id'],
-  #       name=doc['_source']['name'],
-  #     ) for doc in result['hits']['hits']],
-  #   )
-  #   return res
-    
-  
-  # def __build_match_all_query(self) -> dict:
-  #   return {
-  #     "match_all": {}
-  #   }

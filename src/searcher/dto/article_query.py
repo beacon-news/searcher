@@ -14,8 +14,6 @@ flatten_model_attributes(ArticleResult, article_search_keys)
 # keys of ArticleResult that make sense to sort by
 article_sort_keys = set([
   "publish_date",
-  "title",
-  "paragraphs",
 ])
 
 
@@ -50,7 +48,7 @@ class ArticleQuery(BaseModel):
   page: Annotated[int, Field(ge=0)] = 0
 
   # only applicable to text search, semantic search will always limit the returned results
-  page_size: Annotated[int, Field(ge=1, le=30)] = 10
+  page_size: Annotated[int, Field(ge=1, le=40)] = 10
 
   # sorting
   sort_field: str | None = None
@@ -87,54 +85,6 @@ class ArticleQuery(BaseModel):
 
     return v
   
-  # @model_validator(mode='after')
-  # def sorting_valid(self):
-  #   if self.sort_field is None:
-  #     if self.sort_dir is not None:
-  #       raise ValueError("sort_field must be specified if sort_dir is specified.")
-  #   else:
-  #     if self.sort_dir is None:
-  #       self.sort_dir = SortDirection.desc
-
-  #   return self
-
-
-  # if nothing is present, simply returns the most recent articles...
-
-  # @model_validator(mode='after')
-  # def some_query_must_be_present(self):
-    
-  #   str_values = [
-  #     self.id,
-  #     self.query,
-  #     self.categories,
-  #     self.source,
-  #     self.author,
-  #     self.topic,
-  #   ]
-  #   for v in str_values:
-  #     if v is not None and v.strip() != "":
-  #       return self
-    
-  #   list_values = [
-  #     self.topic_ids,
-  #   ]
-  #   for v in list_values:
-  #     if v is not None and len(v) > 0:
-  #       return self
-      
-  #   keys = [
-  #     "id",
-  #     "query",
-  #     "categories",
-  #     "source",
-  #     "author",
-  #     "topic",
-  #     "topic_ids",
-  #   ]
-    
-  #   raise ValueError(f"At least one of {keys} must be specified.")
-  
   @model_validator(mode='after')
   def query_present_for_semantic_and_combined_search(self):
     if (
@@ -145,4 +95,14 @@ class ArticleQuery(BaseModel):
       raise ValueError(f"'query' must not be empty for 'semantic' or 'combined' search.")
     return self
 
-  
+  # limitation of manually combining the text and semantic search results...
+  @model_validator(mode='after')
+  def paging_disabled_for_semantic_and_combined_search(self):
+    if (
+      (self.search_type == ArticleQueryType.semantic or self.search_type == ArticleQueryType.combined) and (
+        self.page != 0
+      )
+    ):
+      raise ValueError(f"'page' must be 0 for 'semantic' or 'combined' search.")
+    return self
+   
