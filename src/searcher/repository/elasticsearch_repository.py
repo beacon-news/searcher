@@ -45,7 +45,8 @@ class ElasticsearchRepository(Repository):
   # maps requested keys to the model's keys, for selecting returned attributes
   topic_search_keys_to_repo_model = {
     "id": "id_is_always_returned", # causes nothing to be returned for the 'id', but the source's '_id' is used which is always returned
-    "query": "query",
+    "batch_id": "batch_id",
+    "batch_query": "batch_query",
     "topic": "topic",
     "count": "count",
     "representative_articles": "representative_articles",
@@ -53,8 +54,8 @@ class ElasticsearchRepository(Repository):
 
   # maps requested sort keys to the model's keys, for creating the sort query
   topic_sort_keys_to_repo_model = {
-    "query.publish_date.start": "query.publish_date.start",
-    "query.publish_date.end": "query.publish_date.end",
+    "date_min": "query.publish_date.start",
+    "date_max": "query.publish_date.end",
     "count": "count",
   }
 
@@ -516,6 +517,7 @@ class ElasticsearchRepository(Repository):
         title = art.get('title', None)
         article.title = "\n".join(title) if title is not None else None
         article.paragraphs = art.get('paragraphs', None)
+        article.paragraphs = article.paragraphs[:3] # only take the first 3 paragraphs
 
         categories = art.get('categories', None)
         if categories:
@@ -537,7 +539,7 @@ class ElasticsearchRepository(Repository):
         if analyzer_category_ids and article.categories:
           article.analyzed_categories = [cat for cat in article.categories if cat.id in analyzer_category_ids]
       
-      if 'topics' in source:
+      if 'topics' in source and source['topics'] is not None:
         topics = source['topics']
         article_topics = [ArticleTopic(
           id=id, 
@@ -553,6 +555,8 @@ class ElasticsearchRepository(Repository):
 
   async def search_topics(self, topic_query: TopicQuery) -> TopicList:
     query = self.__build_topic_query(topic_query)
+    import json
+    print(json.dumps(query, indent=2))
     sort_options = self.__build_topic_sort_options(topic_query)
     docs = await self.es.search(
       index=self.topics_index, 
@@ -573,6 +577,9 @@ class ElasticsearchRepository(Repository):
     if topic_query.ids and len(topic_query.ids) > 0:
       filters.append(self.__build_ids_query(topic_query.ids))
     
+    if topic_query.batch_ids and len(topic_query.batch_ids) > 0:
+      filters.append(self.__build_topic_batch_ids_query(topic_query))
+    
     count_min = topic_query.count_min
     count_max = topic_query.count_max
     if count_min is not None or count_max is not None:
@@ -589,12 +596,12 @@ class ElasticsearchRepository(Repository):
 
     # query so that both the start and end is in the queried range
     filters.append(self.__build_date_query(
-      field="query.publish_date.start",
+      field="batch_query.publish_date.start",
       start=topic_query.date_min, 
       end=topic_query.date_max,
     ))
     filters.append(self.__build_date_query(
-      field="query.publish_date.end",
+      field="batch_query.publish_date.end",
       start=topic_query.date_min, 
       end=topic_query.date_max,
     ))
@@ -614,7 +621,13 @@ class ElasticsearchRepository(Repository):
       }
     }
 
-  # TODO:
+  def __build_topic_batch_ids_query(self, topic_query: TopicQuery) -> dict:
+    return {
+      "terms": {
+        "batch_id": topic_query.batch_ids
+      }
+    }
+
   def __build_topic_sort_options(self, topic_query: TopicQuery) -> dict:
     sort_orders = []
     
@@ -628,7 +641,7 @@ class ElasticsearchRepository(Repository):
     # default sort, replaced by the sort in topic_query if present
     options = [
       {
-        "query.publish_date.end": {
+        "batch_query.publish_date.end": {
           "order": "desc"
         }
       },
@@ -668,14 +681,15 @@ class ElasticsearchRepository(Repository):
         raise ValueError(f"no '_id' field found in doc: {doc}")
 
       topic = Topic(id=id)
+      topic.batch_id = source.get('batch_id', None)
       topic.create_time = source.get('create_time', None)
       topic.topic = source.get('topic', None)
 
-      if 'query' in source:
-        topic.query = TopicArticleQuery(
+      if 'batch_query' in source:
+        topic.batch_query = TopicArticleQuery(
           publish_date=PublishDateFilter(
-            start=datetime.fromisoformat(source['query']['publish_date']['start']),
-            end=datetime.fromisoformat(source['query']['publish_date']['end']),
+            start=datetime.fromisoformat(source['batch_query']['publish_date']['start']),
+            end=datetime.fromisoformat(source['batch_query']['publish_date']['end']),
           )
         )
       topic.count = source.get('count', None)
@@ -685,6 +699,7 @@ class ElasticsearchRepository(Repository):
           TopicArticle(
             id=ra['_id'],
             url=ra['url'],
+            image=ra['image'] if 'image' in ra else None,
             publish_date=datetime.fromisoformat(ra['publish_date']),
             author=ra['author'],
             title=ra['title'],

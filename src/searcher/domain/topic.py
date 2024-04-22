@@ -6,6 +6,7 @@ from datetime import datetime
 class TopicArticle(pydantic.BaseModel):
   id: str
   url: str
+  image: str | None
   publish_date: datetime
   author: list[str]
   title: list[str]
@@ -24,8 +25,9 @@ class TopicArticleQuery(pydantic.BaseModel):
 # they can be excluded from the search and are not always returned
 class Topic(pydantic.BaseModel):
   id: str
+  batch_id: str | None = None
+  batch_query: TopicArticleQuery | None = None
   create_time: datetime | None = None
-  query: TopicArticleQuery | None = None
   topic: str | None = None
   count: int | None = None
   representative_articles: list[TopicArticle] | None = None

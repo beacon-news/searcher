@@ -12,12 +12,15 @@ topic_search_keys = set()
 flatten_model_attributes(TopicResult, topic_search_keys)
 
 topic_sort_keys = set([
-  "query.publish_date.start",
-  "query.publish_date.end",
+  "date_min",
+  "date_max",
+  "count",
 ])
 
 class TopicQuery(BaseModel):
   ids: Annotated[list[str] | None, Field()] = None
+
+  batch_ids: Annotated[list[str] | None, Field()] = None
 
   topic: Annotated[str | None, Field()] = None
 
@@ -32,7 +35,7 @@ class TopicQuery(BaseModel):
   page: Annotated[int, Field(ge=0)] = 0
 
   # only applicable to text search, semantic search will always limit the returned results
-  page_size: Annotated[int, Field(ge=1, le=30)] = 10
+  page_size: Annotated[int, Field(ge=0, le=30)] = 10
 
   # sorting
   sort_field: Annotated[str | None, Field()] = None

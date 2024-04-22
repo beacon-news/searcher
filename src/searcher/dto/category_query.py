@@ -7,7 +7,7 @@ class CategoryQuery(BaseModel):
 
   # pagination
   page: Annotated[int, Field(ge=0)] = 0
-  page_size: Annotated[int, Field(ge=1, le=50)] = 10
+  page_size: Annotated[int, Field(ge=0, le=50)] = 10
 
   @field_validator('ids')
   @classmethod

@@ -62,7 +62,7 @@ class SearchService:
     self.log.info(f"searching for topics: {topic_query}")
 
     topic_list = await self.repo.search_topics(topic_query)
-    results =self.__map_to_topic_results(topic_list)
+    results = self.__map_to_topic_results(topic_list)
     return results
     
   def __map_to_topic_results(self, topic_list: TopicList) -> TopicResults:
@@ -70,7 +70,8 @@ class SearchService:
       total=topic_list.total_count,
       results=[TopicResult(
         id=t.id,
-        query=t.query.model_dump() if t.query is not None else None,
+        batch_id=t.batch_id,
+        batch_query=t.batch_query.model_dump() if t.batch_query is not None else None,
         topic=t.topic,
         count=t.count,
         representative_articles=[

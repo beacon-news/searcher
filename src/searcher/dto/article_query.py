@@ -48,7 +48,7 @@ class ArticleQuery(BaseModel):
   page: Annotated[int, Field(ge=0)] = 0
 
   # only applicable to text search, semantic search will always limit the returned results
-  page_size: Annotated[int, Field(ge=1, le=40)] = 10
+  page_size: Annotated[int, Field(ge=0, le=40)] = 10
 
   # sorting
   sort_field: str | None = None

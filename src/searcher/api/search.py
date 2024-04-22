@@ -48,7 +48,7 @@ async def search_articles(
   page: Annotated[int, Query(ge=0)] = 0,
 
   # only applicable to text search, semantic search will always limit the returned results
-  page_size: Annotated[int, Query(ge=1, le=30)] = 10,
+  page_size: Annotated[int, Query(ge=0, le=30)] = 10,
 
   # sorting
   sort_field: Annotated[str | None, Query()] = None,
@@ -88,6 +88,7 @@ async def search_articles(
 async def search_topics(
   # empty list because None doesn't work properly for OpenAPI here
   ids: Annotated[list[str], Query()] = [],
+  batch_ids: Annotated[list[str], Query()] = [],
 
   topic: Annotated[str | None, Query()] = None,
   count_min: Annotated[int | None, Query()] = None,
@@ -101,7 +102,7 @@ async def search_topics(
   page: Annotated[int, Query(ge=0)] = 0,
 
   # only applicable to text search, semantic search will always limit the returned results
-  page_size: Annotated[int, Query(ge=1, le=30)] = 10,
+  page_size: Annotated[int, Query(ge=0, le=30)] = 10,
 
   # TODO:
   # sorting
@@ -115,6 +116,7 @@ async def search_topics(
 ) -> TopicResults:
   topic_query = TopicQuery(
     ids=ids,
+    batch_ids=batch_ids,
     topic=topic,
     count_min=count_min,
     count_max=count_max,
@@ -156,7 +158,7 @@ async def search_categories(
 
   # pagination
   page: Annotated[int, Query(ge=0)] = 0,
-  page_size: Annotated[int, Query(ge=1, le=50)] = 10,
+  page_size: Annotated[int, Query(ge=0, le=50)] = 10,
 ) -> CategoryResults:
   category_query = CategoryQuery(
     ids=ids,

@@ -1,11 +1,14 @@
 from pydantic import BaseModel
 
 
+# TODO: change 'dict' fields to have proper types
+
 class TopicResult(BaseModel):
   id: str | None = None
 
-  # the query used to get the articles which created this topic
-  query: dict | None = None
+  # info about the batch the topic is a part of
+  batch_id: str | None = None
+  batch_query: dict | None = None
 
   # topic name
   topic: str | None = None
