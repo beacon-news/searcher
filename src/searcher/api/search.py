@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Query, Depends
 from ..dto.article_query import *
 from ..dto.article_result import *
+from ..dto.topic_batch_query import *
+from ..dto.topic_batch_result import *
 from ..dto.topic_query import *
 from ..dto.topic_result import *
 from ..dto.category_result import *
@@ -79,6 +81,56 @@ async def search_articles(
     return_attributes=return_attributes,
   )
   return await search_service.search_articles(article_query)
+
+@router.get(
+  "/topic-batches", 
+  response_model=TopicBatchResults, 
+  response_model_exclude_none=True
+)
+async def search_topic_batches(
+  # empty list because None doesn't work properly for OpenAPI here
+  ids: Annotated[list[str], Query()] = [],
+
+  count_min: Annotated[int | None, Query()] = None,
+  count_max: Annotated[int | None, Query()] = None,
+
+  topic_count_min: Annotated[int | None, Query()] = None,
+  topic_count_max: Annotated[int | None, Query()] = None,
+
+  # ISO8601 date format
+  date_min: Annotated[datetime | None, Query()] = datetime.fromisoformat('1000-01-01T00:00:00'),
+  date_max: Annotated[datetime | None, Query()] = datetime.now(),
+  
+  # pagination
+  page: Annotated[int, Query(ge=0)] = 0,
+
+  # only applicable to text search, semantic search will always limit the returned results
+  page_size: Annotated[int, Query(ge=0, le=30)] = 10,
+
+  # TODO:
+  # sorting
+  sort_field: Annotated[str | None, Query()] = None,
+  sort_dir: Annotated[SortDirection | None, Query()] = None,
+
+  # return only a subset of an ArticleResult
+  # None or [] means return all attributes
+  return_attributes: Annotated[list[str], Query()] = [],
+) -> TopicBatchResults:
+  topic_query = TopicBatchQuery(
+    ids=ids,
+    count_min=count_min,
+    count_max=count_max,
+    topic_count_min=topic_count_min,
+    topic_count_max=topic_count_max,
+    date_min=date_min,
+    date_max=date_max,
+    page=page,
+    page_size=page_size,
+    sort_field=sort_field,
+    sort_dir=sort_dir,
+    return_attributes=return_attributes,
+  )
+  return await search_service.search_topic_batches(topic_query)
 
 @router.get(
   "/topics", 

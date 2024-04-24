@@ -1,5 +1,7 @@
 from ..dto.article_query import *
 from ..dto.article_result import *
+from ..dto.topic_batch_query import *
+from ..dto.topic_batch_result import *
 from ..dto.topic_query import *
 from ..dto.topic_result import *
 from ..dto.category_query import *
@@ -56,6 +58,24 @@ class SearchService:
         title=art.title,
         paragraphs=art.paragraphs,
       ) for art in article_list.articles],
+    )
+
+  async def search_topic_batches(self, topic_batch_query: TopicBatchQuery) -> TopicBatchResults:
+    self.log.info(f"searching for topic batches: {topic_batch_query}")
+
+    topic_batch_list = await self.repo.search_topic_batches(topic_batch_query)
+    results = self.__map_to_topic_batch_results(topic_batch_list)
+    return results
+    
+  def __map_to_topic_batch_results(self, topic_batch_list: TopicBatchList) -> TopicBatchResults:
+    return TopicBatchResults(
+      total=topic_batch_list.total_count,
+      results=[TopicBatchResult(
+        id=tb.id,
+        query=tb.query.model_dump() if tb.query is not None else None,
+        article_count=tb.article_count,
+        topic_count=tb.topic_count,
+      ) for tb in topic_batch_list.batches]
     )
 
   async def search_topics(self, topic_query: TopicQuery) -> TopicResults:

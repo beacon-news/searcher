@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
 from ..dto.article_query import ArticleQuery
 from ..dto.topic_query import TopicQuery
+from ..dto.topic_batch_query import TopicBatchQuery
 from ..domain.article import ArticleList
-from ..domain.topic import TopicList
+from ..domain.topic import TopicList, TopicBatchList
 from ..domain.category import CategoryList
 from ..dto.category_query import CategoryQuery
 
@@ -24,6 +25,11 @@ class Repository(ABC):
     """Only semantic search, with only filters applied from the article query."""
     raise NotImplementedError
   
+  @abstractmethod
+  async def search_topic_batches(self, topic_batch_query: TopicBatchQuery) -> TopicBatchList:
+    """Get topic batches."""
+    raise NotImplementedError
+
   @abstractmethod
   async def search_topics(self, topic_query: TopicQuery) -> TopicList:
     """Search and filter for topics."""

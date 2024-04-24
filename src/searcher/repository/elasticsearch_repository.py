@@ -4,6 +4,7 @@ import asyncio
 from elasticsearch import exceptions, AsyncElasticsearch
 from ..dto.article_query import ArticleQuery
 from ..dto.topic_query import TopicQuery
+from ..dto.topic_batch_query import TopicBatchQuery
 from ..dto.category_query import *
 from .repository import Repository
 from ..domain.article import *
@@ -59,6 +60,13 @@ class ElasticsearchRepository(Repository):
     "count": "count",
   }
 
+  topic_batch_search_keys_to_repo_model = {
+    "id": "id_is_always_returned", # causes nothing to be returned for the 'id', but the source's '_id' is used which is always returned
+    "query": "query",
+    "article_count": "article_count",
+    "create_time": "create_time",
+  }
+
 
   def __init__(
       self, 
@@ -71,6 +79,7 @@ class ElasticsearchRepository(Repository):
   ):
     self.configure_logging(log_level)
     self.articles_index = "articles"
+    self.topic_batches_index = "topic_batches"
     self.topics_index = "topics"
     self.categories_index = "categories"
 
@@ -239,7 +248,7 @@ class ElasticsearchRepository(Repository):
       sort=sort_options["sort"],
       track_scores=sort_options["track_scores"],
       source_excludes=["analyzer.embeddings"],
-      source_includes=self.__map_search_keys(
+      source_includes=self.__map_keys(
         keys=search_options.return_attributes, 
         mapping=self.article_search_keys_to_repo_model
       )
@@ -258,7 +267,7 @@ class ElasticsearchRepository(Repository):
       sort=sort_options["sort"],
       track_scores=sort_options["track_scores"],
       source_excludes=["analyzer.embeddings"],
-      source_includes=self.__map_search_keys(
+      source_includes=self.__map_keys(
         keys=search_options.return_attributes, 
         mapping=self.article_search_keys_to_repo_model
       )
@@ -301,7 +310,7 @@ class ElasticsearchRepository(Repository):
       must_queries.append(self.__build_article_topic_query(search_options.topic))
     
     # date, id, topic_id must match if provided, don't contribute to the score
-    date_query = self.__build_date_query(
+    date_query = self.__build_date_range_query(
       field="article.publish_date",
       start=search_options.date_min, 
       end=search_options.date_max
@@ -312,7 +321,7 @@ class ElasticsearchRepository(Repository):
       filters.append(self.__build_ids_query(search_options.ids)) 
     
     if search_options.category_ids:
-      must_queries.append(self.__build_article_category_ids_query(search_options.category_ids))
+      filters.append(self.__build_article_category_ids_query(search_options.category_ids))
 
     if search_options.topic_ids:
       filters.append(self.__build_article_topic_ids_query(search_options.topic_ids)) 
@@ -330,7 +339,7 @@ class ElasticsearchRepository(Repository):
     # every search option provided doesn't contribute to the score, 
     # the score is only calculated based on embedding cosine similarity
 
-    filters = [self.__build_date_query(
+    filters = [self.__build_date_range_query(
       field="article.publish_date",
       start=search_options.date_min,
       end=search_options.date_max
@@ -406,16 +415,24 @@ class ElasticsearchRepository(Repository):
         "topics.topic_names": topic
       }
     }
+
+  def __build_range_query(self, field: str, min: str, max: str) -> dict:
+    range = {}
+
+    if min is not None:
+      range["gte"] = min
     
-  def __build_date_query(self, field: str, start: datetime, end: datetime) -> dict:
+    if max is not None:
+      range["lte"] = max
+
     return {
       "range": {
-        field: {
-          "gte": start.isoformat(),
-          "lte": end.isoformat(),
-        }
+        field: range
       }
     }
+    
+  def __build_date_range_query(self, field: str, start: datetime, end: datetime) -> dict:
+    return self.__build_range_query(field, start.isoformat(), end.isoformat())
   
   def __build_ids_query(self, ids: list[str]) -> dict:
     return {
@@ -442,7 +459,7 @@ class ElasticsearchRepository(Repository):
     }
     if article_query.sort_field is not None and article_query.sort_dir is not None:
       option = {
-        self.__map_search_keys([article_query.sort_field], self.article_search_keys_to_repo_model)[0]: {
+        self.__map_keys([article_query.sort_field], self.article_search_keys_to_repo_model)[0]: {
           "order": article_query.sort_dir.value,
         }
       }
@@ -475,7 +492,7 @@ class ElasticsearchRepository(Repository):
       
       return [v['doc'] for _, v in sorted(docs.items(), key=lambda doc: doc[1]['rank'], reverse=True)]
 
-  def __map_search_keys(self, keys: list[str] | None, mapping: dict) -> list[str] | None:
+  def __map_keys(self, keys: list[str] | None, mapping: dict) -> list[str] | None:
     # reverse mapping from DTO keys to repo model
     if keys is None:
       # returns every key by default
@@ -555,8 +572,6 @@ class ElasticsearchRepository(Repository):
 
   async def search_topics(self, topic_query: TopicQuery) -> TopicList:
     query = self.__build_topic_query(topic_query)
-    import json
-    print(json.dumps(query, indent=2))
     sort_options = self.__build_topic_sort_options(topic_query)
     docs = await self.es.search(
       index=self.topics_index, 
@@ -565,7 +580,7 @@ class ElasticsearchRepository(Repository):
       track_scores=sort_options["track_scores"],
       from_=topic_query.page * topic_query.page_size,
       size=topic_query.page_size,
-      source_includes=self.__map_search_keys(
+      source_includes=self.__map_keys(
         keys=topic_query.return_attributes,
         mapping=self.topic_search_keys_to_repo_model
       )
@@ -595,12 +610,12 @@ class ElasticsearchRepository(Repository):
       filters.append(count_query)
 
     # query so that both the start and end is in the queried range
-    filters.append(self.__build_date_query(
+    filters.append(self.__build_date_range_query(
       field="batch_query.publish_date.start",
       start=topic_query.date_min, 
       end=topic_query.date_max,
     ))
-    filters.append(self.__build_date_query(
+    filters.append(self.__build_date_range_query(
       field="batch_query.publish_date.end",
       start=topic_query.date_min, 
       end=topic_query.date_max,
@@ -653,7 +668,7 @@ class ElasticsearchRepository(Repository):
     ]
     if topic_query.sort_field is not None and topic_query.sort_dir is not None:
       options = [{
-        self.__map_search_keys([topic_query.sort_field], self.topic_sort_keys_to_repo_model)[0]: {
+        self.__map_keys([topic_query.sort_field], self.topic_sort_keys_to_repo_model)[0]: {
           "order": topic_query.sort_dir.value,
         }
       }]
@@ -711,6 +726,123 @@ class ElasticsearchRepository(Repository):
     res = TopicList(topics=topics, total_count=total_count)
     return res
 
+  async def search_topic_batches(self, topic_batch_query: TopicBatchQuery) -> TopicBatchList:
+    query = self.__build_topic_batch_query(topic_batch_query)
+    sort_options = self.__build_topic_batch_sort_options(topic_batch_query)
+    docs = await self.es.search(
+      index=self.topic_batches_index, 
+      query=query,
+      sort=sort_options["sort"],
+      track_scores=sort_options["track_scores"],
+      from_=topic_batch_query.page * topic_batch_query.page_size,
+      size=topic_batch_query.page_size,
+      source_includes=self.__map_keys(
+        keys=topic_batch_query.return_attributes,
+        mapping=self.topic_batch_search_keys_to_repo_model
+      )
+    )
+    return self.__map_to_topic_batches(docs["hits"])
+  
+  def __build_topic_batch_query(self, topic_batch_query: TopicBatchQuery) -> dict:
+    filters = []
+    if topic_batch_query.ids and len(topic_batch_query.ids) > 0:
+      filters.append(self.__build_ids_query(topic_batch_query.ids))
+    
+    if topic_batch_query.count_min is not None or topic_batch_query.count_max is not None:
+      filters.append(self.__build_range_query(
+        "article_count", 
+        topic_batch_query.count_min, 
+        topic_batch_query.count_max
+      ))
+
+    if topic_batch_query.topic_count_min is not None or topic_batch_query.topic_count_max is not None:
+      filters.append(self.__build_range_query(
+        "topic_count", 
+        topic_batch_query.topic_count_min,
+        topic_batch_query.topic_count_max
+      ))
+
+    # query so that both the start and end is in the queried range
+    filters.append(self.__build_date_range_query(
+      field="query.publish_date.start",
+      start=topic_batch_query.date_min, 
+      end=topic_batch_query.date_max,
+    ))
+    filters.append(self.__build_date_range_query(
+      field="query.publish_date.end",
+      start=topic_batch_query.date_min, 
+      end=topic_batch_query.date_max,
+    ))
+
+    return {
+      "bool": {
+        "filter": filters,
+      }
+    }
+  
+
+  def __build_topic_batch_sort_options(self, topic_batch_query: TopicBatchQuery) -> dict:
+    sort_orders = []
+
+    # default sort, replaced by the sort in topic_query if present
+    # most recent topic batch, if end date is equal take the higher article count
+    options = [
+      {
+        "query.publish_date.end": {
+          "order": "desc"
+        }
+      },
+      {
+        "article_count": {
+          "order": "desc"
+        }
+      },
+    ]
+    if topic_batch_query.sort_field is not None and topic_batch_query.sort_dir is not None:
+      options = [{
+        self.__map_keys([topic_batch_query.sort_field], self.topic_batch_search_keys_to_repo_model)[0]: {
+          "order": topic_batch_query.sort_dir.value,
+        }
+      }]
+
+    sort_orders.extend(options)
+    return {
+      "track_scores": True,
+      "sort": sort_orders,
+    }
+  
+  def __map_to_topic_batches(self, doc_hits: list[dict]) -> TopicBatchList:
+    # convert to domain model
+
+    topic_batches: list[TopicBatch] = []
+    total_count = doc_hits['total']['value']
+
+    for doc in doc_hits['hits']:
+      source = doc['_source']
+
+      # at least the '_id' field should always be present
+      id = doc.get('_id', None)
+
+      if id is None:
+        raise ValueError(f"no '_id' field found in doc: {doc}")
+
+      topic_batch = TopicBatch(id=id)
+
+      if 'query' in source:
+        topic_batch.query = TopicArticleQuery(
+          publish_date=PublishDateFilter(
+            start=datetime.fromisoformat(source['query']['publish_date']['start']),
+            end=datetime.fromisoformat(source['query']['publish_date']['end']),
+          )
+        )
+      topic_batch.article_count = source.get('article_count', None)
+      topic_batch.topic_count = source.get('topic_count', None)
+      topic_batch.create_time = source.get('create_time', None)
+
+      topic_batches.append(topic_batch)
+
+    res = TopicBatchList(batches=topic_batches, total_count=total_count)
+    return res
 
   async def search_categories(self, category_query: CategoryQuery) -> CategoryList:
     query = self.__build_categories_query(category_query)

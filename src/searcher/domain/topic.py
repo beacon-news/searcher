@@ -36,3 +36,15 @@ class Topic(pydantic.BaseModel):
 class TopicList(pydantic.BaseModel):
   total_count: int
   topics: list[Topic]
+
+
+class TopicBatch(pydantic.BaseModel):
+  id: str | None = None
+  query: TopicArticleQuery | None = None
+  article_count: int | None = None
+  topic_count: int | None = None
+  create_time: datetime | None = None
+
+class TopicBatchList(pydantic.BaseModel):
+  total_count: int
+  batches: list[TopicBatch]
