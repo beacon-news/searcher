@@ -63,7 +63,7 @@ class SearchService:
   async def search_topic_batches(self, topic_batch_query: TopicBatchQuery) -> TopicBatchResults:
     self.log.info(f"searching for topic batches: {topic_batch_query}")
 
-    topic_batch_list = await self.repo.search_topic_batches(topic_batch_query)
+    topic_batch_list = await self.repo.get_topic_batches(topic_batch_query)
     results = self.__map_to_topic_batch_results(topic_batch_list)
     return results
     

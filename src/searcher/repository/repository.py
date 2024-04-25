@@ -26,7 +26,7 @@ class Repository(ABC):
     raise NotImplementedError
   
   @abstractmethod
-  async def search_topic_batches(self, topic_batch_query: TopicBatchQuery) -> TopicBatchList:
+  async def get_topic_batches(self, topic_batch_query: TopicBatchQuery) -> TopicBatchList:
     """Get topic batches."""
     raise NotImplementedError
 

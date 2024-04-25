@@ -726,7 +726,7 @@ class ElasticsearchRepository(Repository):
     res = TopicList(topics=topics, total_count=total_count)
     return res
 
-  async def search_topic_batches(self, topic_batch_query: TopicBatchQuery) -> TopicBatchList:
+  async def get_topic_batches(self, topic_batch_query: TopicBatchQuery) -> TopicBatchList:
     query = self.__build_topic_batch_query(topic_batch_query)
     sort_options = self.__build_topic_batch_sort_options(topic_batch_query)
     docs = await self.es.search(
