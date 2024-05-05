@@ -5,7 +5,6 @@ from datetime import datetime
 from .utils import flatten_model_attributes
 from .topic_batch_result import TopicBatchResult
 from .sort_direction import SortDirection
-import typing as t
 
 topic_batch_search_keys = set() 
 flatten_model_attributes(TopicBatchResult, topic_batch_search_keys)
@@ -28,7 +27,7 @@ class TopicBatchQuery(BaseModel):
 
   # ISO8601 date format
   date_min: Annotated[datetime | None, Field()] = datetime.fromisoformat('1000-01-01T00:00:00')
-  date_max: Annotated[datetime | None, Field()] = datetime.now()
+  date_max: Annotated[datetime | None, Field(default_factory=datetime.now)]
   
   # pagination
   page: Annotated[int, Field(ge=0)] = 0
@@ -42,7 +41,7 @@ class TopicBatchQuery(BaseModel):
 
   # return only a subset of an ArticleResult
   # None means return all attributes
-  return_attributes: Annotated[t.List[str] | None, Field()] = None
+  return_attributes: Annotated[list[str] | None, Field()] = None
 
 
   @field_validator("return_attributes")

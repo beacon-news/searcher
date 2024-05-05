@@ -25,24 +25,24 @@ class ArticleQueryType(str, Enum):
 
 
 class ArticleQuery(BaseModel):
-  ids: list[str] | None = None
+  ids: Annotated[list[str] | None, Field()] = None
 
   # for title and paragraph
-  query: str | None = None
+  query: Annotated[str | None, Field()] = None
 
-  category_ids: list[str] | None = None
-  categories: str | None = None
+  category_ids: Annotated[list[str] | None, Field()] = None
+  categories: Annotated[str | None, Field()] = None
 
-  source: str | None = None
+  source: Annotated[str | None, Field()] = None
 
-  author: str | None = None
+  author: Annotated[str | None, Field()] = None
 
   # ISO8601 date format, see pydantic docs
-  date_min: datetime = datetime.fromisoformat('1000-01-01T00:00:00')
-  date_max: datetime = datetime.now()
+  date_min: Annotated[datetime | None, Field()] = datetime.fromisoformat('1000-01-01T00:00:00')
+  date_max: Annotated[datetime | None, Field(default_factory=datetime.now)]
 
-  topic_ids: list[str] | None = None
-  topic: str | None = None
+  topic_ids: Annotated[list[str] | None, Field()] = None
+  topic: Annotated[str | None, Field()] = None
 
   # pagination
   page: Annotated[int, Field(ge=0)] = 0
@@ -51,14 +51,14 @@ class ArticleQuery(BaseModel):
   page_size: Annotated[int, Field(ge=0, le=40)] = 10
 
   # sorting
-  sort_field: str | None = None
-  sort_dir: SortDirection | None = None
+  sort_field: Annotated[str | None, Field()] = None
+  sort_dir: Annotated[SortDirection | None, Field()] = None
 
-  search_type: ArticleQueryType = ArticleQueryType.text
+  search_type: Annotated[ArticleQueryType, Field()] = ArticleQueryType.text
 
   # return only a subset of an ArticleResult
   # None means return all attributes
-  return_attributes: list[str] | None = None  
+  return_attributes: Annotated[list[str] | None, Field()] = None
 
 
   @field_validator("return_attributes")

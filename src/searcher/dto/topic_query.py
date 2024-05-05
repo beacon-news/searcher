@@ -1,12 +1,10 @@
-from pydantic import BaseModel, model_validator, field_validator, Field
-from fastapi import Query
+from pydantic import BaseModel, field_validator, Field
 
 from typing import Annotated
 from datetime import datetime
 from .utils import flatten_model_attributes
 from .topic_result import TopicResult
 from .sort_direction import SortDirection
-import typing as t
 
 topic_search_keys = set() 
 flatten_model_attributes(TopicResult, topic_search_keys)
@@ -29,7 +27,7 @@ class TopicQuery(BaseModel):
 
   # ISO8601 date format
   date_min: Annotated[datetime | None, Field()] = datetime.fromisoformat('1000-01-01T00:00:00')
-  date_max: Annotated[datetime | None, Field()] = datetime.now()
+  date_max: Annotated[datetime | None, Field(default_factory=datetime.now)]
   
   # pagination
   page: Annotated[int, Field(ge=0)] = 0
@@ -43,7 +41,7 @@ class TopicQuery(BaseModel):
 
   # return only a subset of an ArticleResult
   # None means return all attributes
-  return_attributes: Annotated[t.List[str] | None, Field()] = None
+  return_attributes: Annotated[list[str] | None, Field()] = None
 
 
   @field_validator("return_attributes")

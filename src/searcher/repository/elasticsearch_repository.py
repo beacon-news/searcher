@@ -88,8 +88,12 @@ class ElasticsearchRepository(Repository):
     self.log.info(f"connecting to Elasticsearch at {conn}")
     self.es = AsyncElasticsearch(conn, basic_auth=(user, password), ca_certs=cacerts, verify_certs=verify_certs)
   
+  async def assert_indices(self):
+    await self.assert_articles_index()
+    await self.assert_categories_index()
 
   # TODO: assert topic index
+  # TODO: assert topic batches index
   async def assert_articles_index(self):
     try:
       self.log.info(f"creating/asserting index '{self.articles_index}'")
@@ -195,7 +199,6 @@ class ElasticsearchRepository(Repository):
       if e.message == "resource_already_exists_exception":
         self.log.info(f"index {self.categories_index} already exists")
 
-  # TODO: add topic index assertion
   
   # In the case of combined search, pagination doesn't really work as expected.
   # Pagination only applies to the text query,
