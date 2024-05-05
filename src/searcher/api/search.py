@@ -15,7 +15,6 @@ router = APIRouter(
   tags=["Search"],
 )
 
-
 # @router.post(
 #   "/articles",
 #   response_model=ArticleResults,
@@ -40,8 +39,9 @@ async def search_articles(
   author: Annotated[str | None, Query()] = None,
 
   # ISO8601 date format
-  date_min: Annotated[datetime | None, Query()] = datetime.fromisoformat('1000-01-01T00:00:00'),
-  date_max: Annotated[datetime | None, Query()] = datetime.now(),
+  # not using Annotated here because of dynamic default values, and default value param order
+  date_min: datetime = datetime.fromisoformat('1000-01-01T00:00:00'),
+  date_max: datetime = Query(default_factory=datetime.now),
 
   topic_ids: Annotated[list[str] | None, Query()] = None,
   topic: Annotated[str | None, Query()] = None,
@@ -98,8 +98,9 @@ async def search_topic_batches(
   topic_count_max: Annotated[int | None, Query()] = None,
 
   # ISO8601 date format
-  date_min: Annotated[datetime | None, Query()] = datetime.fromisoformat('1000-01-01T00:00:00'),
-  date_max: Annotated[datetime | None, Query()] = datetime.now(),
+  # not using Annotated here because of dynamic default values, and default value param order
+  date_min: datetime = datetime.fromisoformat('1000-01-01T00:00:00'),
+  date_max: datetime = Query(default_factory=datetime.now),
   
   # pagination
   page: Annotated[int, Query(ge=0)] = 0,
@@ -147,8 +148,9 @@ async def search_topics(
   count_max: Annotated[int | None, Query()] = None,
 
   # ISO8601 date format
-  date_min: Annotated[datetime | None, Query()] = datetime.fromisoformat('1000-01-01T00:00:00'),
-  date_max: Annotated[datetime | None, Query()] = datetime.now(),
+  # not using Annotated here because of dynamic default values, and default value param order
+  date_min: datetime = datetime.fromisoformat('1000-01-01T00:00:00'),
+  date_max: datetime = Query(default_factory=datetime.now),
   
   # pagination
   page: Annotated[int, Query(ge=0)] = 0,
