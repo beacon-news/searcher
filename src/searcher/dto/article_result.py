@@ -6,7 +6,6 @@ class ArticleResult(BaseModel):
   # what's returned is based on the return_attributes field of the ArticleQuery
   id: str | None = None
   categories: list[dict] | None = None
-  entities: list[str] | None = None
   topics: list[dict] | None = None
   url: str | None = None
   publish_date: datetime | None = None

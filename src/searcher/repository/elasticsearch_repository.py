@@ -32,7 +32,6 @@ class ElasticsearchRepository(Repository):
       "article.categories",
       "analyzer.category_ids",
     ],
-    "entities": "analyzer.entities",
     "topics": "topics",
     "url": "article.url",
     "publish_date": "article.publish_date",
@@ -120,9 +119,6 @@ class ElasticsearchRepository(Repository):
               "embeddings": {
                 "type": "dense_vector",
                 "dims": 384, # depends on the embeddings model
-              },
-              "entities": {
-                "type": "text"
               },
             }
           },
@@ -551,7 +547,6 @@ class ElasticsearchRepository(Repository):
       if 'analyzer' in source:
         # TODO: embeddings are never returned, they are excluded from every search
         analyzer = source['analyzer']
-        article.entities = analyzer.get('entities', None)
         article.embeddings = analyzer.get('embeddings', None)
 
         # analyzed categories can only be constructed if the merged categories are present
