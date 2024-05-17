@@ -5,6 +5,7 @@ from datetime import datetime
 from .utils import flatten_model_attributes
 from .topic_result import TopicResult
 from .sort_direction import SortDirection
+from .exceptions import QueryValidationException
 
 topic_search_keys = set() 
 flatten_model_attributes(TopicResult, topic_search_keys)
@@ -52,7 +53,7 @@ class TopicQuery(BaseModel):
 
     for key in v:
       if key not in topic_search_keys:
-        raise ValueError(f"Invalid return attribute '{key}'. Must be one of {topic_search_keys}.")
+        raise QueryValidationException(f"Invalid return attribute '{key}'. Must be one of {topic_search_keys}.")
 
     # all keys are valid, return them
     return v
@@ -64,33 +65,7 @@ class TopicQuery(BaseModel):
       return None
 
     if v not in topic_sort_keys:
-      raise ValueError(f"Invalid sort field '{v}'. Must be one of {topic_sort_keys}.")
+      raise QueryValidationException(f"Invalid sort field '{v}'. Must be one of {topic_sort_keys}.")
 
     return v
-
-  # @model_validator(mode='after')
-  # def some_query_must_be_present(self):
-    
-  #   values = [
-  #     self.id,
-  #     self.topic,
-  #     self.count_min,
-  #     self.count_max,
-  #     self.date_min,
-  #     self.date_max,
-  #   ]
-  #   for v in values:
-  #     if v is not None and str(v).strip() != "":
-  #       return self
-    
-  #   keys = [
-  #     "id",
-  #     "topic",
-  #     "count_min",
-  #     "count_max",
-  #     "date_min",
-  #     "date_max",
-  #   ]
-    
-  #   raise ValueError(f"At least one of {keys} must be specified.")
     

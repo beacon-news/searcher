@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field, field_validator
 from typing import Annotated
+from .exceptions import QueryValidationException
 
 class CategoryQuery(BaseModel):
   ids: Annotated[list[str] | None, Field()] = None
@@ -15,7 +16,7 @@ class CategoryQuery(BaseModel):
     if v is not None:
       new_items = [value for value in v if len(value) > 0 and not value.isspace()]
       if len(new_items) > 100: 
-        raise ValueError("list contains too many items")
+        raise QueryValidationException("list contains too many items")
 
       return new_items
     return v

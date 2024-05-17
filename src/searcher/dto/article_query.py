@@ -5,6 +5,7 @@ from enum import Enum
 from .article_result import ArticleResult
 from .sort_direction import SortDirection
 from .utils import flatten_model_attributes
+from .exceptions import QueryValidationException
 
   
 # find out the flattened keys of ArticleResult
@@ -69,7 +70,7 @@ class ArticleQuery(BaseModel):
 
     for key in v:
       if key not in article_search_keys:
-        raise ValueError(f"Invalid return attribute '{key}'. Must be one of {article_search_keys}.")
+        raise QueryValidationException(f"Invalid return attribute '{key}'. Must be one of {article_search_keys}.")
 
     # all keys are valid, return them
     return v
@@ -81,7 +82,7 @@ class ArticleQuery(BaseModel):
       return None
 
     if v not in article_sort_keys:
-      raise ValueError(f"Invalid sort field '{v}'. Must be one of {article_sort_keys}.")
+      raise QueryValidationException(f"Invalid sort field '{v}'. Must be one of {article_sort_keys}.")
 
     return v
   
@@ -92,17 +93,17 @@ class ArticleQuery(BaseModel):
         self.query is None or self.query.isspace()
       )
     ):
-      raise ValueError(f"'query' must not be empty for 'semantic' or 'combined' search.")
+      raise QueryValidationException(f"'query' must not be empty for 'semantic' or 'combined' search.")
     return self
 
   # limitation of manually combining the text and semantic search results...
   @model_validator(mode='after')
-  def paging_disabled_for_semantic_and_combined_search(self):
+  def paging_disabled_for_combined_search(self):
     if (
-      (self.search_type == ArticleQueryType.semantic or self.search_type == ArticleQueryType.combined) and (
+      (self.search_type == ArticleQueryType.combined) and (
         self.page != 0
       )
     ):
-      raise ValueError(f"'page' must be 0 for 'semantic' or 'combined' search.")
+      raise QueryValidationException(f"'page' must be 0 for 'combined' search.")
     return self
    

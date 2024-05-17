@@ -12,7 +12,7 @@ from ..domain.topic import *
 from ..domain.category import *
 
 KNN_NUM_CANDIDATES = 50
-KNN_K = 10
+KNN_K = 15
 
 
 class ElasticsearchRepository(Repository):
@@ -255,6 +255,11 @@ class ElasticsearchRepository(Repository):
   
   async def search_articles_embeddings(self, search_options: ArticleQuery, embeddings: list) -> ArticleList:
     res = await self.__search_articles_embeddings(search_options, embeddings)
+
+    # support paging manually 
+    start = search_options.page * search_options.page_size
+    end = start + search_options.page_size
+    res['hits']['hits'] = res['hits']['hits'][start:end]
     return self.__map_to_articles(res['hits'])
   
   async def __search_articles_embeddings(self, search_options: ArticleQuery, embeddings: list) -> dict:
@@ -532,8 +537,8 @@ class ElasticsearchRepository(Repository):
         article.author = "\n".join(author) if author is not None else None
         title = art.get('title', None)
         article.title = "\n".join(title) if title is not None else None
-        article.paragraphs = art.get('paragraphs', None)
-        article.paragraphs = article.paragraphs[:3] # only take the first 3 paragraphs
+        paragraphs = art.get('paragraphs', None)
+        article.paragraphs = article.paragraphs[:3] if paragraphs is not None else None # only take the first 3 paragraphs
 
         categories = art.get('categories', None)
         if categories:
@@ -897,37 +902,6 @@ class ElasticsearchRepository(Repository):
     )
     return res
     
-
-  
-  # async def __search_aggregate_categories(self, top_n: int) -> CategoryResults:
-  #   result = await self.es.search(
-  #     index=self.articles_index,
-  #     aggs=self.__build_categories_aggregation(top_n),
-  #     size=0, # don't return any articles, only the categories
-  #   )
-
-  #   buckets = result['aggregations']['categories']['buckets']
-
-  #   res = CategoryResults(
-  #     total=top_n,
-  #     results=[CategoryResult(
-  #       name=b['key'],
-  #       article_count=b['doc_count'],
-  #     ) for b in buckets],
-  #   ) 
-  #   return res
-
-  # def __build_categories_aggregation(self, size: int) -> dict:
-  #   # only get up to the top 'size' categories
-  #   return {
-  #     "categories": {
-  #       "terms": {
-  #         "field": "article.categories.names.keyword",
-  #         "size": size,
-  #       }
-  #     }
-  #   }
-  
   def __build_category_name_query(self, name: str) -> dict:
     return {
       "match": {

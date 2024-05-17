@@ -5,6 +5,7 @@ from datetime import datetime
 from .utils import flatten_model_attributes
 from .topic_batch_result import TopicBatchResult
 from .sort_direction import SortDirection
+from .exceptions import QueryValidationException
 
 topic_batch_search_keys = set() 
 flatten_model_attributes(TopicBatchResult, topic_batch_search_keys)
@@ -52,7 +53,7 @@ class TopicBatchQuery(BaseModel):
 
     for key in v:
       if key not in topic_batch_search_keys:
-        raise ValueError(f"Invalid return attribute '{key}'. Must be one of {topic_batch_search_keys}.")
+        raise QueryValidationException(f"Invalid return attribute '{key}'. Must be one of {topic_batch_search_keys}.")
 
     # all keys are valid, return them
     return v
@@ -64,6 +65,6 @@ class TopicBatchQuery(BaseModel):
       return None
 
     if v not in topic_batch_sort_keys:
-      raise ValueError(f"Invalid sort field '{v}'. Must be one of {topic_batch_sort_keys}.")
+      raise QueryValidationException(f"Invalid sort field '{v}'. Must be one of {topic_batch_sort_keys}.")
 
     return v

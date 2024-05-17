@@ -48,7 +48,6 @@ class SearchService:
       results=[ArticleResult(
         id=art.id,
         categories=[art.model_dump() for art in art.categories] if art.categories is not None else None, 
-        entities=art.entities,
         topics=[t.model_dump() for t in art.topics] if art.topics is not None else None, 
         url=art.url,
         publish_date=art.publish_date,
