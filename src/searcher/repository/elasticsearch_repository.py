@@ -538,7 +538,7 @@ class ElasticsearchRepository(Repository):
         title = art.get('title', None)
         article.title = "\n".join(title) if title is not None else None
         paragraphs = art.get('paragraphs', None)
-        article.paragraphs = article.paragraphs[:3] if paragraphs is not None else None # only take the first 3 paragraphs
+        article.paragraphs = paragraphs[:3] if paragraphs is not None else None # only take the first 3 paragraphs
 
         categories = art.get('categories', None)
         if categories:
