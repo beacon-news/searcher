@@ -15,14 +15,6 @@ router = APIRouter(
   tags=["Search"],
 )
 
-# @router.post(
-#   "/articles",
-#   response_model=ArticleResults,
-#   response_model_exclude_none=True,
-# )
-# async def search_articles(search_options: ArticleQuery | None = ArticleQuery()) -> ArticleResults:
-#   return await search_service.search_articles(search_options)
-
 @router.get(
   "/articles",
   response_model=ArticleResults,
@@ -184,23 +176,6 @@ async def search_topics(
   )
   return await search_service.search_topics(topic_query)
     
-# @router.post(
-#   "/topics", 
-#   response_model=TopicResults, 
-#   response_model_exclude_none=True
-# )
-# async def search_topics(topic_query: TopicQuery | None = TopicQuery()) -> TopicResults:
-#   return await search_service.search_topics(topic_query)
-
-
-# @router.post(
-#   "/categories", 
-#   response_model=CategoryResults, 
-#   response_model_exclude_none=True,
-# )
-# async def search_categories(category_query: CategoryQuery | None = CategoryQuery()) -> CategoryResults:
-#   return await search_service.search_categories(category_query)
-
 @router.get(
   "/categories", 
   response_model=CategoryResults, 

@@ -12,7 +12,6 @@ USER app
 COPY --chown=app:app . .
 
 ENV EMBEDDINGS_MODEL_PATH=../models/embeddings/embeddings_container_all_MiniLM_L6_v2.pkl
-ENV ELASTIC_PASSWORD=password
 
 WORKDIR /app/src
 

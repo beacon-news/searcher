@@ -91,8 +91,6 @@ class ElasticsearchRepository(Repository):
     await self.assert_articles_index()
     await self.assert_categories_index()
 
-  # TODO: assert topic index
-  # TODO: assert topic batches index
   async def assert_articles_index(self):
     try:
       self.log.info(f"creating/asserting index '{self.articles_index}'")
@@ -298,7 +296,6 @@ class ElasticsearchRepository(Repository):
         },
       ])
     
-    # TODO: add this as filters as well?
     # categories, author, topic must match if provided, contribute to the score
     must_queries = []
     if search_options.source:
