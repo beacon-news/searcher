@@ -157,9 +157,12 @@ class ElasticsearchRepository(Repository):
 
   }
 
-  topic_bach_mappings = {
+  topic_batch_mappings = {
     "properties": {
       "article_count": {
+        "type": "long"
+      },
+      "topic_count": {
         "type": "long"
       },
       "create_time": {
@@ -179,8 +182,71 @@ class ElasticsearchRepository(Repository):
           }
         }
       },
-      "topic_count": {
+    }
+  }
+
+  topic_mappings = {
+    "properties": {
+      "batch_id": {
+        "type": "keyword",
+      },
+      "batch_query": {
+        "properties": {
+          "publish_date": {
+            "properties": {
+              "start": {
+                "type": "date"
+              },
+              "end": {
+                "type": "date"
+              },
+            }
+          }
+        }
+      },
+      "count": {
         "type": "long"
+      },
+      "create_time": {
+        "type": "date"
+      },
+      "representative_articles": {
+        "properties": {
+          "_id": {
+            "type": "keyword",
+          },
+          "author": {
+            "type": "text",
+          },
+          "image": {
+            "type": "text",
+            "enabled": "false", # don't index image urls
+          },
+          "publish_date": {
+            "type": "date"
+          },
+          "title": {
+            "type": "text",
+          },
+          "url": {
+            "type": "text",
+            "fields": {
+              "keyword": {
+                "type": "keyword",
+                "ignore_above": 256
+              }
+            }
+          }
+        }
+      },
+      "topic": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
       }
     }
   }
