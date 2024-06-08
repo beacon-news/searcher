@@ -66,12 +66,10 @@ class ElasticsearchRepository(Repository):
     "create_time": "create_time",
   }
 
-  articles_index = "articles"
-  topic_batches_index = "topic_batches"
-  topics_index = "topics"
-  categories_index = "categories"
 
-  article_mappings = {
+  # indices and mappings
+  articles_index = "articles"
+  articles_mappings = {
     "properties": {
       "topics": {
         "properties": {
@@ -153,11 +151,17 @@ class ElasticsearchRepository(Repository):
     }
   }
 
-  category_mappings = {
-
+  categories_index = "categories"
+  categories_mappings = {
+    "properties": {
+      "name": {
+        "type": "text",
+      }
+    }
   }
 
-  topic_batch_mappings = {
+  topic_batches_index = "topic_batches"
+  topic_batches_mappings = {
     "properties": {
       "article_count": {
         "type": "long"
@@ -185,7 +189,8 @@ class ElasticsearchRepository(Repository):
     }
   }
 
-  topic_mappings = {
+  topics_index = "topics"
+  topics_mappings = {
     "properties": {
       "batch_id": {
         "type": "keyword",
@@ -269,97 +274,11 @@ class ElasticsearchRepository(Repository):
     self.es = AsyncElasticsearch(conn, basic_auth=(user, password), ca_certs=cacerts, verify_certs=verify_certs)
   
   async def assert_indices(self):
-    await self.assert_articles_index()
-    await self.assert_categories_index()
+    await self.assert_index(self.articles_index, self.articles_mappings)
+    await self.assert_index(self.topics_index, self.topics_mappings)
+    await self.assert_index(self.topic_batches_index, self.topic_batches_mappings)
+    await self.assert_index(self.categories_index, self.categories_mappings)
 
-  async def assert_articles_index(self):
-    try:
-      self.log.info(f"creating/asserting index '{self.articles_index}'")
-      await self.es.indices.create(index=self.articles_index, mappings={
-        "properties": {
-          "topics": {
-            "properties": {
-              "topic_ids": {
-                "type": "keyword"
-              },
-              "topic_names": {
-                "type": "text"
-              }
-            }
-          },
-          "analyzer": {
-            "properties": {
-              "category_ids": {
-                # don't index the analyzer-generated categories, index the merged ones instead
-                # only to be able to differentiate between the predicted and predefined categories
-                "enabled": "false",
-                "type": "keyword",
-              },
-              "embeddings": {
-                "type": "dense_vector",
-                "dims": 384, # depends on the embeddings model
-              },
-            }
-          },
-          "article": {
-            "properties": {
-              "id": {
-                "type": "keyword",
-              },
-              "url": {
-                "type": "keyword",
-              },
-              "source": {
-                "type": "text",
-                # keyword mapping needed so we can do aggregations
-                "fields": {
-                  "keyword": {
-                    "type": "keyword",
-                    "ignore_above": 256
-                  }
-                }
-              },
-              "publish_date": {
-                "type": "date",
-              },
-              "image": {
-                "type": "keyword",
-                "enabled": "false", # don't index image urls
-              },
-              "author": {
-                "type": "text",
-              },
-              "title": {
-                "type": "text",
-              },
-              "paragraphs": {
-                "type": "text",
-              },
-              "categories": {
-                "properties": {
-                  "ids" : {
-                    "type": "keyword"
-                  },
-                  "names": {
-                    "type": "text",
-                    # keyword mapping needed so we can do aggregations
-                    "fields": {
-                      "keyword": {
-                        "type": "keyword",
-                        "ignore_above": 256
-                      }
-                    }
-                  }
-                }
-              },
-            }
-          }
-        }
-      })
-    except exceptions.BadRequestError as e:
-      if e.message == "resource_already_exists_exception":
-        self.log.info(f"index {self.articles_index} already exists")
-  
 
   async def assert_index(self, index_name: str, index_mappings: dict):
     try:
@@ -368,20 +287,6 @@ class ElasticsearchRepository(Repository):
     except exceptions.BadRequestError as e:
       if e.message == "resource_already_exists_exception":
         self.log.info(f"index '{index_name}' already exists")
-
-  async def assert_categories_index(self):
-    try:
-      self.log.info(f"creating/asserting index '{self.categories_index}'")
-      await self.es.indices.create(index=self.categories_index, mappings={
-        "properties": {
-          "name": {
-            "type": "text",
-          }
-        }
-      })
-    except exceptions.BadRequestError as e:
-      if e.message == "resource_already_exists_exception":
-        self.log.info(f"index {self.categories_index} already exists")
 
   
   # In the case of combined search, pagination doesn't really work as expected.
