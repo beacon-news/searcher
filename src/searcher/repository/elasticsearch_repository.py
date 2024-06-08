@@ -66,6 +66,125 @@ class ElasticsearchRepository(Repository):
     "create_time": "create_time",
   }
 
+  articles_index = "articles"
+  topic_batches_index = "topic_batches"
+  topics_index = "topics"
+  categories_index = "categories"
+
+  article_mappings = {
+    "properties": {
+      "topics": {
+        "properties": {
+          "topic_ids": {
+            "type": "keyword"
+          },
+          "topic_names": {
+            "type": "text"
+          }
+        }
+      },
+      "analyzer": {
+        "properties": {
+          "category_ids": {
+            # don't index the analyzer-generated categories, index the merged ones instead
+            # only to be able to differentiate between the predicted and predefined categories
+            "enabled": "false",
+            "type": "keyword",
+          },
+          "embeddings": {
+            "type": "dense_vector",
+            "dims": 384, # depends on the embeddings model
+          },
+        }
+      },
+      "article": {
+        "properties": {
+          "id": {
+            "type": "keyword",
+          },
+          "url": {
+            "type": "keyword",
+          },
+          "source": {
+            "type": "text",
+            # keyword mapping needed so we can do aggregations
+            "fields": {
+              "keyword": {
+                "type": "keyword",
+                "ignore_above": 256
+              }
+            }
+          },
+          "publish_date": {
+            "type": "date",
+          },
+          "image": {
+            "type": "keyword",
+            "enabled": "false", # don't index image urls
+          },
+          "author": {
+            "type": "text",
+          },
+          "title": {
+            "type": "text",
+          },
+          "paragraphs": {
+            "type": "text",
+          },
+          "categories": {
+            "properties": {
+              "ids" : {
+                "type": "keyword"
+              },
+              "names": {
+                "type": "text",
+                # keyword mapping needed so we can do aggregations
+                "fields": {
+                  "keyword": {
+                    "type": "keyword",
+                    "ignore_above": 256
+                  }
+                }
+              }
+            }
+          },
+        }
+      }
+    }
+  }
+
+  category_mappings = {
+
+  }
+
+  topic_bach_mappings = {
+    "properties": {
+      "article_count": {
+        "type": "long"
+      },
+      "create_time": {
+        "type": "date"
+      },
+      "query": {
+        "properties": {
+          "publish_date": {
+            "properties": {
+              "start": {
+                "type": "date"
+              },
+              "end": {
+                "type": "date"
+              },
+            }
+          }
+        }
+      },
+      "topic_count": {
+        "type": "long"
+      }
+    }
+  }
+
 
   def __init__(
       self, 
@@ -77,10 +196,6 @@ class ElasticsearchRepository(Repository):
       log_level: int = logging.INFO
   ):
     self.configure_logging(log_level)
-    self.articles_index = "articles"
-    self.topic_batches_index = "topic_batches"
-    self.topics_index = "topics"
-    self.categories_index = "categories"
 
     # TODO: secure with TLS
     # TODO: add some form of auth
@@ -178,6 +293,15 @@ class ElasticsearchRepository(Repository):
     except exceptions.BadRequestError as e:
       if e.message == "resource_already_exists_exception":
         self.log.info(f"index {self.articles_index} already exists")
+  
+
+  async def assert_index(self, index_name: str, index_mappings: dict):
+    try:
+      self.log.info(f"creating/asserting index '{index_name}'")
+      await self.es.indices.create(index=index_name, mappings=index_mappings)
+    except exceptions.BadRequestError as e:
+      if e.message == "resource_already_exists_exception":
+        self.log.info(f"index '{index_name}' already exists")
 
   async def assert_categories_index(self):
     try:
