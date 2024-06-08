@@ -1,7 +1,9 @@
-from ..utils import log_utils
+import os
+import json
 import logging
 import asyncio
 from elasticsearch import exceptions, AsyncElasticsearch
+from ..utils import log_utils
 from ..dto.article_query import ArticleQuery
 from ..dto.topic_query import TopicQuery
 from ..dto.topic_batch_query import TopicBatchQuery
@@ -10,10 +12,14 @@ from .repository import Repository
 from ..domain.article import *
 from ..domain.topic import *
 from ..domain.category import *
+from ..utils.check_env import check_env
 
 KNN_NUM_CANDIDATES = 50
 KNN_K = 15
 
+def open_json(path: str):
+  with open(path) as f:
+    return json.load(f)
 
 class ElasticsearchRepository(Repository):
 
@@ -24,6 +30,18 @@ class ElasticsearchRepository(Repository):
       name=cls.__name__,
       level=level
     )
+  
+  ARTICLES_INDEX = check_env("ARTICLES_INDEX")
+  ARTICLES_MAPPINGS = open_json(check_env("ARTICLES_INDEX_PATH"))
+
+  CATEGORIES_INDEX = check_env("CATEGORIES_INDEX")
+  CATEGORIES_MAPPINGS = open_json(check_env("CATEGORIES_MAPPINGS_PATH"))
+
+  TOPIC_BATCHES_INDEX = check_env("TOPIC_BATCHES_INDEX")
+  TOPIC_BATCHES_ = open_json(check_env("TOPIC_BATCHES_MAPPINGS_PATH"))
+
+  TOPICS_INDEX = check_env("TOPICS_INDEX")
+  TOPICS_MAPPINGS = open_json(check_env("TOPICS_MAPPINGS_PATH"))
   
   # maps requested keys to the model's keys, for selecting returned attributes
   article_search_keys_to_repo_model = {

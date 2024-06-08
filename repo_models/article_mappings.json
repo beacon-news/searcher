@@ -1,0 +1,77 @@
+{
+    "properties": {
+      "topics": {
+        "properties": {
+          "topic_ids": {
+            "type": "keyword"
+          },
+          "topic_names": {
+            "type": "text"
+          }
+        }
+      },
+      "analyzer": {
+        "properties": {
+          "category_ids": {
+            "enabled": "false",
+            "type": "keyword"
+          },
+          "embeddings": {
+            "type": "dense_vector",
+            "dims": 384
+          }
+        }
+      },
+      "article": {
+        "properties": {
+          "id": {
+            "type": "keyword"
+          },
+          "url": {
+            "type": "keyword"
+          },
+          "source": {
+            "type": "text",
+            "fields": {
+              "keyword": {
+                "type": "keyword",
+                "ignore_above": 256
+              }
+            }
+          },
+          "publish_date": {
+            "type": "date"
+          },
+          "image": {
+            "type": "keyword",
+            "enabled": "false"
+          },
+          "author": {
+            "type": "text"
+          },
+          "title": {
+            "type": "text"
+          },
+          "paragraphs": {
+            "type": "text"
+          },
+          "categories": {
+            "properties": {
+              "ids" : {
+                "type": "keyword"
+              },
+              "names": {
+                "type": "text",
+                "fields": {
+                  "keyword": {
+                    "type": "keyword",
+                    "ignore_above": 256
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }

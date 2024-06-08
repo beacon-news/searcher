@@ -1,19 +1,13 @@
-import os
 import asyncio
 from dotenv import load_dotenv
 from .embeddings import EmbeddingsModelContainer, EmbeddingsModel
 from .repository.elasticsearch_repository import ElasticsearchRepository
 from .service import SearchService
 from .repository import Repository
+from .utils.check_env import check_env
 
 
 load_dotenv()
-
-def check_env(name: str, default=None) -> str:
-  value = os.environ.get(name, default)
-  if value is None:
-    raise ValueError(f'{name} environment variable is not set')
-  return value
 
 
 EMBEDDINGS_MODEL_PATH = check_env('EMBEDDINGS_MODEL_PATH')
