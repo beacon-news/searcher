@@ -86,7 +86,7 @@ class ElasticsearchRepository(Repository):
           "category_ids": {
             # don't index the analyzer-generated categories, index the merged ones instead
             # only to be able to differentiate between the predicted and predefined categories
-            "enabled": "false",
+            "index": "false",
             "type": "keyword",
           },
           "embeddings": {
@@ -118,7 +118,7 @@ class ElasticsearchRepository(Repository):
           },
           "image": {
             "type": "keyword",
-            "enabled": "false", # don't index image urls
+            "index": "false", # don't index image urls
           },
           "author": {
             "type": "text",
@@ -225,7 +225,7 @@ class ElasticsearchRepository(Repository):
           },
           "image": {
             "type": "text",
-            "enabled": "false", # don't index image urls
+            "index": "false", # don't index image urls
           },
           "publish_date": {
             "type": "date"
@@ -268,7 +268,6 @@ class ElasticsearchRepository(Repository):
   ):
     self.configure_logging(log_level)
 
-    # TODO: secure with TLS
     # TODO: add some form of auth
     self.log.info(f"connecting to Elasticsearch at {conn}")
     self.es = AsyncElasticsearch(conn, basic_auth=(user, password), ca_certs=cacerts, verify_certs=verify_certs)

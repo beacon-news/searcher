@@ -9,7 +9,7 @@ RUN pip3 install -r requirements.txt --no-cache-dir
 RUN useradd app --create-home --shell /bin/bash
 USER app
 
-COPY --chown=app:app . .
+COPY . .
 
 ENV EMBEDDINGS_MODEL_PATH=../models/embeddings/embeddings_container_all_MiniLM_L6_v2.pkl
 
