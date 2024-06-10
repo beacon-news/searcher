@@ -287,6 +287,9 @@ class ElasticsearchRepository(Repository):
       if e.message == "resource_already_exists_exception":
         self.log.info(f"index '{index_name}' already exists")
 
+  async def close(self):
+    self.log.info("closing async Elasticsearch client")
+    await self.es.close()
   
   # In the case of combined search, pagination doesn't really work as expected.
   # Pagination only applies to the text query,

@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 from .api import search
 from .api import exception_handlers
 from .searcher_setup import (
@@ -17,8 +18,22 @@ tags_metadata = [
    }
 ]
 
+# creates db indices and closes the async db when the app closes
+@asynccontextmanager
+async def ensure_db(app: FastAPI):
+  from .searcher_setup import repository
+  # startup
+  await repository.assert_indices()
+
+  yield
+
+  # shutdown
+  await repository.close()
+
+
 app = FastAPI(
   tags_metadata=tags_metadata,
+  lifespan=ensure_db,
 )
 
 for h in exception_handlers.handlers:

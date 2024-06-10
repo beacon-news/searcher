@@ -1,6 +1,4 @@
 import os
-import asyncio
-from threading import Thread
 from dotenv import load_dotenv
 from .embeddings import EmbeddingsModelContainer, EmbeddingsModel
 from .repository.elasticsearch_repository import ElasticsearchRepository
@@ -39,11 +37,6 @@ repository: Repository = ElasticsearchRepository(
   ELASTIC_CA_PATH, 
   not ELASTIC_TLS_INSECURE
 )
-
-# assert indices
-t = Thread(target=lambda: asyncio.run(repository.assert_indices()))
-t.start()
-t.join()
 
 search_service = SearchService(
   repo=repository,
